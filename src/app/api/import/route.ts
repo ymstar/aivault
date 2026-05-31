@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing platform' }, { status: 400 });
     }
 
-    const validPlatforms = ['chatgpt', 'claude'];
+    const validPlatforms = ['chatgpt', 'claude', 'claude-code'];
     if (!validPlatforms.includes(platform)) {
       return NextResponse.json(
         { error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}` },
@@ -30,16 +30,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const filename = file.name || '';
     const text = await file.text();
+    
+    // Determine how to parse based on file extension and platform
     let rawData: unknown;
-    try {
-      rawData = JSON.parse(text);
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON file' }, { status: 400 });
+    const isTextFile = filename.endsWith('.txt') || filename.endsWith('.md');
+    
+    if (platform === 'claude-code' || (platform === 'claude' && isTextFile)) {
+      // Claude Code exports are txt/md files - pass as string
+      rawData = text;
+    } else {
+      // JSON files for ChatGPT and Claude web exports
+      try {
+        rawData = JSON.parse(text);
+      } catch {
+        return NextResponse.json({ 
+          error: 'Invalid JSON file. For Claude Code terminal exports, please select "Claude Code" as the platform.' 
+        }, { status: 400 });
+      }
     }
 
     // Pass raw data to parser - it handles both array and object formats
-    const conversations: ImportedConversation[] = parseExport(platform, rawData);
+    const conversations: ImportedConversation[] = parseExport(platform, rawData, filename);
 
     const supabase = createServerClient();
     let totalMessages = 0;

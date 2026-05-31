@@ -2,17 +2,18 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, FileJson, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Upload, FileJson, FileText, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-type Platform = 'chatgpt' | 'claude';
+type Platform = 'chatgpt' | 'claude' | 'claude-code';
 type Status = 'idle' | 'uploading' | 'success' | 'error';
 
-const platforms: { id: Platform; name: string; icon: string; desc: string }[] = [
-  { id: 'chatgpt', name: 'ChatGPT', icon: '🤖', desc: 'Export from Settings → Data → Export' },
-  { id: 'claude', name: 'Claude', icon: '🧠', desc: 'Export from Settings → Data → Export' },
+const platforms: { id: Platform; name: string; icon: string; desc: string; accept: string }[] = [
+  { id: 'chatgpt', name: 'ChatGPT', icon: '🤖', desc: 'Export from Settings → Data → Export', accept: '.json' },
+  { id: 'claude', name: 'Claude Web', icon: '🧠', desc: 'Export from Settings → Data → Export', accept: '.json' },
+  { id: 'claude-code', name: 'Claude Code', icon: '⚡', desc: 'Terminal: use /export command', accept: '.txt,.md' },
 ];
 
 export default function ImportPage() {
@@ -22,6 +23,8 @@ export default function ImportPage() {
   const [result, setResult] = useState<{ conversations: number; messages: number } | null>(null);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+
+  const selectedPlatform = platforms.find(p => p.id === platform)!;
 
   const handleUpload = useCallback(async (file: File) => {
     setStatus('uploading');
@@ -64,12 +67,12 @@ export default function ImportPage() {
       </div>
 
       {/* Platform selector */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {platforms.map(p => (
           <button
             key={p.id}
             onClick={() => setPlatform(p.id)}
-            className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-all ${
+            className={`flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-all ${
               platform === p.id
                 ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
                 : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-700'
@@ -77,7 +80,7 @@ export default function ImportPage() {
           >
             <span className="text-2xl">{p.icon}</span>
             <div>
-              <p className="font-medium">{p.name}</p>
+              <p className="font-medium text-sm">{p.name}</p>
               <p className="text-xs text-zinc-500">{p.desc}</p>
             </div>
           </button>
@@ -100,13 +103,23 @@ export default function ImportPage() {
           <Upload className="mb-4 h-10 w-10 text-zinc-500" />
           <p className="text-lg font-medium">Drop your file here</p>
           <p className="text-sm text-zinc-500">or click to browse</p>
-          <Badge variant="outline" className="mt-4 border-zinc-700 text-zinc-400">
-            <FileJson className="mr-1 h-3 w-3" /> .json
-          </Badge>
+          <div className="mt-4 flex gap-2">
+            <Badge variant="outline" className="border-zinc-700 text-zinc-400">
+              {platform === 'claude-code' ? (
+                <>
+                  <FileText className="mr-1 h-3 w-3" /> .txt .md
+                </>
+              ) : (
+                <>
+                  <FileJson className="mr-1 h-3 w-3" /> .json
+                </>
+              )}
+            </Badge>
+          </div>
           <input
             id="file-input"
             type="file"
-            accept=".json"
+            accept={selectedPlatform.accept}
             className="hidden"
             onChange={handleFileInput}
           />
