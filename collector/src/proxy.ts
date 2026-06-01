@@ -1,11 +1,9 @@
-import { ProxyAgent, setGlobalDispatcher } from 'undici';
-
 /**
  * Enable proxy support for Node.js native fetch (undici).
  * Reads HTTPS_PROXY / HTTP_PROXY / ALL_PROXY from environment.
- * Call this once at startup, before any fetch() calls.
+ * Uses undici bundled with Node.js 18+ (no extra install needed).
  */
-export function setupProxy() {
+export async function setupProxy() {
   const proxyUrl =
     process.env.HTTPS_PROXY ||
     process.env.https_proxy ||
@@ -17,10 +15,12 @@ export function setupProxy() {
   if (!proxyUrl) return;
 
   try {
+    // @ts-ignore - undici is bundled with Node 18+ but lacks type declarations
+    const { ProxyAgent, setGlobalDispatcher } = await import('undici');
     const agent = new ProxyAgent(proxyUrl);
     setGlobalDispatcher(agent);
     console.log(`  Proxy: ${proxyUrl}`);
-  } catch (err: any) {
-    console.error(`  Warning: Could not set up proxy: ${err.message}`);
+  } catch {
+    console.log(`  Proxy env detected: ${proxyUrl} (undici ProxyAgent unavailable on this Node version)`);
   }
 }

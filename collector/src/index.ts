@@ -7,16 +7,16 @@ import { setupProxy } from './proxy';
 // Load env from local .env
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-// Enable HTTPS proxy if configured
-setupProxy();
-
-const API_URL = process.env.AIVAULT_API_URL || 'https://aivault-one.vercel.app';
-const API_KEY = process.env.AIVAULT_API_KEY || '';
-
 async function main() {
   console.log('╔═══════════════════════════════════════╗');
   console.log('║    AIVault — Claude Code Collector     ║');
   console.log('╚═══════════════════════════════════════╝\n');
+
+  // Enable HTTPS proxy if configured (must await before any fetch)
+  await setupProxy();
+
+  const API_URL = process.env.AIVAULT_API_URL || 'https://aivault-one.vercel.app';
+  const API_KEY = process.env.AIVAULT_API_KEY || '';
 
   if (!API_KEY) {
     console.error('✗ Missing AIVAULT_API_KEY');

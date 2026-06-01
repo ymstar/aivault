@@ -10,9 +10,7 @@
   },
   "dependencies": {
     "chokidar": "^4.0.0",
-    "dotenv": "^17.4.2",
-    "https-proxy-agent": "^7.0.0",
-    "undici": "^8.3.0"
+    "dotenv": "^17.4.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
