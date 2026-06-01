@@ -1,4 +1,5 @@
 import { ParsedSession } from './parser';
+import { proxyFetch } from './proxy';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -24,6 +25,7 @@ function saveState(state: CollectorState) {
 /**
  * Syncs parsed Claude Code sessions to AIVault via its REST API.
  * No direct database access — purely HTTP client.
+ * Uses proxyFetch to support HTTPS_PROXY on all Node.js versions.
  */
 export class AIVaultSync {
   private apiUrl: string;
@@ -42,8 +44,9 @@ export class AIVaultSync {
    */
   async ping(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.apiUrl}/api/collector`, {
+      const res = await proxyFetch(`${this.apiUrl}/api/collector`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
+        timeout: 15000,
       });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
@@ -68,7 +71,7 @@ export class AIVaultSync {
    * Sync a parsed session to AIVault.
    */
   async syncSession(session: ParsedSession): Promise<{ action: string; conversationId: string }> {
-    const res = await fetch(`${this.apiUrl}/api/collector/sync`, {
+    const res = await proxyFetch(`${this.apiUrl}/api/collector/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,6 +84,7 @@ export class AIVaultSync {
         createdAt: session.createdAt,
         model: session.model,
       }),
+      timeout: 30000,
     });
 
     if (!res.ok) {
@@ -88,11 +92,11 @@ export class AIVaultSync {
       throw new Error(`API error ${res.status}: ${errText}`);
     }
 
-    const result = await res.json() as { action: string; conversationId: string };
-    
+    const result = JSON.parse(await res.text()) as { action: string; conversationId: string };
+
     // Mark as processed
     this.markProcessed(session.sessionId, session.messages.length);
-    
+
     return result;
   }
 

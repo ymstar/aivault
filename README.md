@@ -1,27 +1,79 @@
-# AIVault
+<div align="center">
 
-**Your AI Data. Secured. Unified. Yours.**
+# 🏛️ AIVault
+
+### **Your AI Data. Secured. Unified. Yours.**
 
 All your AI conversations in one place — import, search, and chat with your knowledge base.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
-[![Supabase](https://img.shields.io/badge/Supabase-Database-3ecf8e?logo=supabase)](https://supabase.com)
-[![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](https://vercel.com)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js%2015-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Supabase](https://img.shields.io/badge/Supabase-3ecf8e?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+[![Deploy](https://img.shields.io/badge/Deploy%20to-Vercel-black?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
+
+<br/>
+
+[Features](#-features) · [Quick Start](#-quick-start) · [Deploy](#-deploy-to-vercel) · [Architecture](#-architecture) · [Contributing](#-contributing)
+
+</div>
 
 ---
 
-## Features
+## 🎯 Why AIVault?
 
-- **Multi-Platform Import** — ChatGPT, Claude, Claude Code, and more
-- **Real-Time Collection** — Claude Code Collector automatically captures sessions
-- **Knowledge Base** — Chat with your conversations using any LLM (MiMo, OpenAI, etc.)
-- **Semantic Search** — Vector embeddings for intelligent context retrieval
-- **MCP Server** — Integrate with any AI agent via Model Context Protocol
-- **API Key System** — Secure access for external tools
-- **Multi-Format Parsing** — JSON, Markdown, and terminal output formats
+You chat with AI every day — ChatGPT, Claude, Gemini, MiMo. Your conversations contain **valuable knowledge**: code solutions, project decisions, research insights. But they're trapped in silos.
 
-## Quick Start
+**AIVault** liberates your AI data:
+
+- 📥 **Import** conversations from any AI platform
+- 🔍 **Search** across everything with semantic vector search
+- 💬 **Chat** with your knowledge base using any LLM
+- 🤖 **Collect** Claude Code sessions automatically
+- 🔌 **Integrate** with any AI agent via MCP protocol
+
+---
+
+## ✨ Features
+
+<table>
+<tr>
+<td width="50%">
+
+### 📥 Multi-Platform Import
+Upload ChatGPT JSON exports, Claude conversations, Claude Code terminal sessions. Auto-detect format, batch import.
+
+### 🔍 Semantic Search
+Powered by pgvector embeddings. Ask natural language questions — find the conversation that matters, not just keyword matches.
+
+### 💬 Knowledge Base Chat
+Chat with your conversations using any OpenAI/Anthropic compatible LLM. Configure API key and model per session.
+
+</td>
+<td width="50%">
+
+### 🤖 Real-Time Collection
+Claude Code Collector watches `~/.claude/projects/` and syncs sessions to AIVault in real-time. Zero manual effort.
+
+### 🔌 MCP Server
+Model Context Protocol integration — connect AIVault to Claude Desktop, Cursor, or any MCP-compatible agent.
+
+### 🔑 API Key System
+Generate API keys for external tools. Collector, MCP, or your own scripts — all authenticated through AIVault.
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js** 18+
+- **[Supabase](https://supabase.com)** account (free tier works)
+- **[Clerk](https://clerk.com)** account (free tier works)
 
 ### 1. Clone & Install
 
@@ -33,24 +85,43 @@ npm install
 
 ### 2. Set Up Services
 
-You need accounts on:
-- [Supabase](https://supabase.com) — Database (free tier works)
-- [Clerk](https://clerk.com) — Authentication (free tier works)
+**Supabase** — Create a project at [supabase.com](https://supabase.com)
 
-### 3. Configure Environment
+**Clerk** — Create an application at [clerk.com](https://clerk.com)
+
+### 3. Configure
 
 ```bash
 cp .env.example .env.local
 ```
 
-Fill in your Supabase and Clerk credentials in `.env.local`.
+Fill in your credentials:
 
-### 4. Set Up Database
+```env
+# Supabase (Settings → API)
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-Run the SQL migrations in Supabase SQL Editor (in order):
-1. `supabase/schema.sql` — Core tables
-2. `supabase/migrations/002_pgvector.sql` — Vector search (optional)
-3. `supabase/migrations/003_api_keys.sql` — API key authentication
+# Clerk (API Keys)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+```
+
+### 4. Database Setup
+
+Run these SQL files in **Supabase SQL Editor** (Dashboard → SQL Editor):
+
+```sql
+-- 1. Core tables (users, conversations, messages, subscriptions)
+--    → Paste contents of supabase/schema.sql
+
+-- 2. Vector search (optional, for RAG)
+--    → Paste contents of supabase/migrations/002_pgvector.sql
+
+-- 3. API key authentication
+--    → Paste contents of supabase/migrations/003_api_keys.sql
+```
 
 ### 5. Run
 
@@ -58,37 +129,64 @@ Run the SQL migrations in Supabase SQL Editor (in order):
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000) 🎉
 
-## Deploy to Vercel
+---
+
+## ☁️ Deploy to Vercel
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ymstar/aivault)
 
-1. Connect your GitHub repo
+1. Click the button above (or connect repo manually)
 2. Add environment variables from `.env.local`
-3. Deploy
+3. Deploy — done!
 
-## Claude Code Collector
+Every `git push` auto-deploys.
 
-Real-time sync of Claude Code sessions to AIVault:
+---
+
+## 🤖 Claude Code Collector
+
+Automatically sync Claude Code sessions to AIVault:
 
 ```bash
 cd collector
 npm install && npm run build
+```
 
-# Configure
-echo 'AIVAULT_API_KEY=your-key' > .env
-echo 'AIVAULT_API_URL=https://your-instance.vercel.app' >> .env
+Configure:
 
-# Run
+```bash
+# collector/.env
+AIVAULT_API_URL=https://your-aivault.vercel.app
+AIVAULT_API_KEY=av_xxxxx         # Generate in Settings → API Keys
+```
+
+Run:
+
+```bash
 node dist/index.js
 ```
 
-Generate an API key in AIVault → Settings → API Keys.
+```
+╔═══════════════════════════════════════╗
+║    AIVault — Claude Code Collector     ║
+╚═══════════════════════════════════════╝
 
-## MCP Server
+✓ Syncing as user you@example.com
+👁 Watching: ~/.claude/projects
+Found 11 existing session files
+✓ Initial scan: 7 synced, 0 skipped
+✓ Watcher active — collecting new sessions in real-time
+```
 
-Integrate AIVault with any AI agent:
+The collector monitors `~/.claude/projects/` and syncs new conversations in real-time. No manual export needed.
+
+---
+
+## 🔌 MCP Server
+
+Connect AIVault to any MCP-compatible agent:
 
 ```json
 {
@@ -105,41 +203,108 @@ Integrate AIVault with any AI agent:
 }
 ```
 
-## Tech Stack
+**Available tools:**
+- `search_conversations` — Search across all conversations
+- `get_conversation` — Get full conversation details
+- `list_conversations` — List recent conversations
+- `get_stats` — Get statistics overview
 
-- **Frontend:** Next.js 15, React 19, Tailwind CSS, shadcn/ui
-- **Backend:** Next.js API Routes, Supabase (PostgreSQL)
-- **Auth:** Clerk
-- **Vector Search:** pgvector (HNSW index)
-- **AI:** MiMo, OpenAI compatible APIs
+---
 
-## Project Structure
+## 🏗 Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    AIVault App                       │
+│              Next.js 15 + TypeScript                │
+├─────────────┬───────────────┬───────────────────────┤
+│   Frontend  │   API Routes  │    Middleware          │
+│  (React 19) │  (/api/*)     │   (Clerk Auth)        │
+├─────────────┴───────────────┴───────────────────────┤
+│                      ↓                               │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────────┐  │
+│  │ Supabase │  │  Clerk   │  │   LLM APIs        │  │
+│  │ Postgres │  │  Auth    │  │ MiMo / OpenAI /    │  │
+│  │ + pgvector│  │          │  │ Anthropic          │  │
+│  └──────────┘  └──────────┘  └───────────────────┘  │
+├─────────────────────────────────────────────────────┤
+│  External Tools                                      │
+│  ┌──────────────┐  ┌──────────────┐                 │
+│  │   Collector   │  │  MCP Server  │                 │
+│  │ (Claude Code) │  │ (Agents)     │                 │
+│  └──────────────┘  └──────────────┘                 │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
 
 ```
 aivault/
 ├── src/
-│   ├── app/                  # Next.js App Router
-│   │   ├── (auth)/           # Sign in / Sign up
-│   │   ├── (dashboard)/      # Main app pages
-│   │   └── api/              # API routes
-│   ├── components/           # React components
-│   ├── lib/                  # Utilities & services
-│   │   ├── parsers/          # ChatGPT, Claude, Claude Code parsers
-│   │   ├── embeddings.ts     # Vector embedding generation
-│   │   ├── supabase.ts       # Database client
-│   │   └── api-keys.ts       # API key management
-│   └── middleware.ts         # Auth middleware
-├── collector/                # Claude Code session collector (standalone)
-├── mcp-server/               # MCP server for agent integration
+│   ├── app/                    # Next.js App Router
+│   │   ├── (auth)/             # Sign in / Sign up pages
+│   │   ├── (dashboard)/        # Main app pages
+│   │   │   ├── chat/           # AI chat with knowledge base
+│   │   │   ├── conversations/  # Browse imported conversations
+│   │   │   ├── import/         # File upload & import
+│   │   │   ├── search/         # Full-text & semantic search
+│   │   │   └── settings/       # Account & API key management
+│   │   └── api/                # REST API endpoints
+│   ├── components/             # Reusable UI components
+│   ├── lib/                    # Core libraries
+│   │   ├── parsers/            # ChatGPT, Claude, Claude Code parsers
+│   │   ├── embeddings.ts       # Vector embedding generation
+│   │   ├── supabase.ts         # Database client
+│   │   ├── auth.ts             # Auth utilities
+│   │   └── api-keys.ts         # API key management
+│   └── middleware.ts           # Clerk auth middleware
+├── collector/                  # Claude Code session collector
+├── mcp-server/                 # MCP server for agent integration
 ├── supabase/
-│   └── migrations/           # Database migrations
-└── docs/
+│   ├── schema.sql              # Core database schema
+│   └── migrations/             # pgvector & API keys
+└── docs/                       # Documentation
 ```
 
-## Contributing
+---
 
-See [CONTRIBUTING.md](CONTRIBUTING.md)
+## ⚙️ Tech Stack
 
-## License
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 15 (App Router) |
+| Language | TypeScript 5 |
+| UI | Tailwind CSS + shadcn/ui |
+| Database | Supabase (PostgreSQL) |
+| Vector Search | pgvector (HNSW index) |
+| Auth | Clerk |
+| AI/LLM | MiMo, OpenAI, Anthropic compatible |
+| Deploy | Vercel |
 
-[Apache License 2.0](LICENSE)
+---
+
+## 🤝 Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- Development setup
+- Code conventions
+- Pull request process
+
+---
+
+## 📄 License
+
+[Apache License 2.0](LICENSE) — free for personal and commercial use.
+
+---
+
+<div align="center">
+
+**Built with ❤️ for the AI era**
+
+[⬆ Back to top](#-aivault)
+
+</div>

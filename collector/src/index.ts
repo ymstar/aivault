@@ -2,21 +2,18 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { AIVaultSync } from './sync';
 import { SessionWatcher } from './watcher';
-import { setupProxy } from './proxy';
 
 // Load env from local .env
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
+const API_URL = process.env.AIVAULT_API_URL || 'https://aivault-one.vercel.app';
+const ENV_KEY_API = 'AIVAULT_API_KEY';
+const API_KEY = process.env[ENV_KEY_API] || '';
 
 async function main() {
   console.log('╔═══════════════════════════════════════╗');
   console.log('║    AIVault — Claude Code Collector     ║');
   console.log('╚═══════════════════════════════════════╝\n');
-
-  // Enable HTTPS proxy if configured (must await before any fetch)
-  await setupProxy();
-
-  const API_URL = process.env.AIVAULT_API_URL || 'https://aivault-one.vercel.app';
-  const API_KEY = process.env.AIVAULT_API_KEY || '';
 
   if (!API_KEY) {
     console.error('✗ Missing AIVAULT_API_KEY');
@@ -24,14 +21,14 @@ async function main() {
     console.error('Setup:');
     console.error('  1. Go to AIVault Dashboard → Settings → API Keys');
     console.error('  2. Generate a new key');
-    console.error('  3. Create collector/.env:');
-    console.error('     AIVAULT_API_KEY=av_xxxxxxxxxxxx');
+    console.error('  3. Create collector/.env with:');
+    console.error('     AIVAULT_API_KEY=av_xxx...');
     console.error('');
     process.exit(1);
   }
 
-  console.log(`API: ${API_URL}`);
-  console.log(`Key: ${API_KEY.slice(0, 10)}...`);
+  console.log('API: ' + API_URL);
+  console.log('Key: ' + API_KEY.slice(0, 10) + '...');
 
   const sync = new AIVaultSync(API_URL, API_KEY);
 
