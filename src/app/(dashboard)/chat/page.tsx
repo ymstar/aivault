@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Loader2, MessageSquare, ChevronDown, Settings, X, Eye, EyeOff } from 'lucide-react';
+import { Send, Loader2, MessageSquare, ChevronDown, Settings, X, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/shared/empty-state';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -187,6 +188,7 @@ export default function ChatPage() {
         }
         return updated;
       });
+      localStorage.setItem('aivault-has-chatted', '1');
     } catch (err) {
       console.error('Send message error:', err);
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: Connection failed. Please check your network and try again.' }]);
@@ -262,16 +264,18 @@ export default function ChatPage() {
         <CardContent className="h-full p-0">
           <div ref={scrollRef} className="h-full overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-500">
-                <MessageSquare className="h-12 w-12 mb-3 opacity-30" />
-                <p className="text-lg font-medium">Ask anything about your conversations</p>
-                <p className="text-sm mt-1">Select a specific conversation as context, or search across all</p>
+              <div className="flex flex-col items-center justify-center h-full">
+                <EmptyState
+                  icon={Sparkles}
+                  title="Ask anything about your conversations"
+                  description="Select a specific conversation as context, or search across all"
+                />
                 {!hasApiKey && (
                   <button
                     onClick={() => { setConfigDraft(config); setShowSettings(true); setShowKey(false); }}
-                    className="mt-4 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm hover:bg-amber-500/20 transition-colors"
+                    className="mt-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm hover:bg-amber-500/20 transition-colors"
                   >
-                    ⚙️ Configure API Key to start chatting
+                    Configure API Key to start chatting
                   </button>
                 )}
               </div>

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageSquare, MessageCircle, Link2, Crown, Upload, Loader2 } from 'lucide-react';
+import { MessageSquare, MessageCircle, Link2, Crown, Upload, Loader2, CheckCircle2, Search, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/shared/empty-state';
 
 const platformEmoji: Record<string, string> = {
   CHATGPT: '🤖', CLAUDE: '🧠', GEMINI: '✨',
@@ -32,10 +33,91 @@ interface Conversation {
   created_at: string;
 }
 
+function OnboardingChecklist({
+  hasImported,
+  hasSearched,
+  hasChatted,
+}: {
+  hasImported: boolean;
+  hasSearched: boolean;
+  hasChatted: boolean;
+}) {
+  const steps = [
+    {
+      done: hasImported,
+      icon: Upload,
+      label: 'Import your first conversation',
+      description: 'Bring in data from ChatGPT, Claude, or Gemini',
+      href: '/import',
+    },
+    {
+      done: hasSearched,
+      icon: Search,
+      label: 'Search your conversations',
+      description: 'Find anything across all your AI chats',
+      href: '/search',
+    },
+    {
+      done: hasChatted,
+      icon: Sparkles,
+      label: 'Chat with your AI data',
+      description: 'Ask questions about your conversation history',
+      href: '/chat',
+    },
+  ];
+
+  const completed = steps.filter((s) => s.done).length;
+
+  return (
+    <div className="space-y-4 py-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-zinc-400">Get started with AIVault</p>
+        <span className="text-xs text-zinc-500">{completed} of {steps.length}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+          style={{ width: `${(completed / steps.length) * 100}%` }}
+        />
+      </div>
+      <div className="space-y-2">
+        {steps.map((step) => (
+          <Link key={step.href} href={step.href}>
+            <div className={`flex items-center gap-4 rounded-lg border p-4 transition-colors ${
+              step.done
+                ? 'border-zinc-800/50 bg-zinc-900/30'
+                : 'border-zinc-800 hover:bg-zinc-800/50 cursor-pointer'
+            }`}>
+              {step.done ? (
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-green-500" />
+              ) : (
+                <step.icon className="h-5 w-5 shrink-0 text-zinc-500" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${step.done ? 'text-zinc-500 line-through' : ''}`}>
+                  {step.label}
+                </p>
+                <p className="text-xs text-zinc-600">{step.description}</p>
+              </div>
+              {!step.done && (
+                <Button size="sm" variant="ghost" className="shrink-0 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10">
+                  Go
+                </Button>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recent, setRecent] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [hasChatted, setHasChatted] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -56,6 +138,11 @@ export default function DashboardPage() {
       setLoading(false);
     }
     load();
+  }, []);
+
+  useEffect(() => {
+    setHasSearched(localStorage.getItem('aivault-has-searched') === '1');
+    setHasChatted(localStorage.getItem('aivault-has-chatted') === '1');
   }, []);
 
   const hour = new Date().getHours();
@@ -112,15 +199,11 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           {recent.length === 0 ? (
-            <div className="flex flex-col items-center py-8 text-center">
-              <MessageSquare className="mb-3 h-10 w-10 text-zinc-700" />
-              <p className="text-zinc-400">No conversations yet</p>
-              <Link href="/import">
-                <Button variant="outline" className="mt-4 border-zinc-700">
-                  <Upload className="mr-2 h-4 w-4" /> Import your first conversation
-                </Button>
-              </Link>
-            </div>
+            <OnboardingChecklist
+              hasImported={(stats?.totalConversations ?? 0) > 0}
+              hasSearched={hasSearched}
+              hasChatted={hasChatted}
+            />
           ) : (
             <div className="space-y-3">
               {recent.map((conv) => (

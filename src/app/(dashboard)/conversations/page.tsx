@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/shared/empty-state';
 
 const platformColors: Record<string, string> = {
   CHATGPT: 'bg-green-500/10 text-green-400 border-green-500/20',
@@ -127,16 +128,12 @@ export default function ConversationsPage() {
 
       {/* Empty state */}
       {!loading && conversations.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <MessageSquare className="mb-4 h-16 w-16 text-zinc-700" />
-          <h3 className="text-lg font-medium">No conversations yet</h3>
-          <p className="mt-2 text-sm text-zinc-500">Import your first AI conversation to get started</p>
-          <Link href="/import">
-            <Button className="mt-6 bg-indigo-600 hover:bg-indigo-700">
-              <Upload className="mr-2 h-4 w-4" /> Import Now
-            </Button>
-          </Link>
-        </div>
+        <EmptyState
+          icon={MessageSquare}
+          title="No conversations yet"
+          description="Import your first AI conversation to get started"
+          action={{ label: 'Import Now', href: '/import', icon: Upload }}
+        />
       )}
 
       {/* Grid view */}

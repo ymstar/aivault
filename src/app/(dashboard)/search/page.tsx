@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Search, Loader2, MessageSquare, X } from 'lucide-react';
+import { Search, Loader2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/shared/empty-state';
 
 const platformColors: Record<string, string> = {
   CHATGPT: 'bg-green-500/10 text-green-400 border-green-500/20',
@@ -57,6 +58,7 @@ export default function SearchPage() {
       }
       const data = await res.json();
       setResults(data.results || []);
+      localStorage.setItem('aivault-has-searched', '1');
       // Save recent search
       const updated = [q, ...recentSearches.filter(s => s !== q)].slice(0, 5);
       setRecentSearches(updated);
@@ -144,11 +146,11 @@ export default function SearchPage() {
 
       {/* Results */}
       {!loading && searched && results.length === 0 && (
-        <div className="flex flex-col items-center py-12 text-center">
-          <Search className="mb-4 h-12 w-12 text-zinc-700" />
-          <p className="text-zinc-400">No results found for &quot;{query}&quot;</p>
-          <p className="text-sm text-zinc-500">Try different keywords</p>
-        </div>
+        <EmptyState
+          icon={Search}
+          title={`No results found for "${query}"`}
+          description="Try different keywords"
+        />
       )}
 
       {!loading && results.length > 0 && (
@@ -175,11 +177,11 @@ export default function SearchPage() {
 
       {/* Empty state */}
       {!searched && recentSearches.length === 0 && (
-        <div className="flex flex-col items-center py-12 text-center">
-          <MessageSquare className="mb-4 h-12 w-12 text-zinc-700" />
-          <p className="text-zinc-400">Search through all your AI conversations</p>
-          <p className="text-sm text-zinc-500">Try searching for a topic, keyword, or question</p>
-        </div>
+        <EmptyState
+          icon={Search}
+          title="Search through all your AI conversations"
+          description="Try searching for a topic, keyword, or question"
+        />
       )}
     </div>
   );
