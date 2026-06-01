@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getDbUserId } from '@/lib/auth';
 import type { ImportedConversation } from '@/types';
+import type { Database } from '@/types/supabase';
 
 export async function GET(request: NextRequest) {
   const userId = await getDbUserId();
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
       .range(from, to);
 
     if (platform) {
-      dbQuery = dbQuery.eq('platform', platform);
+      dbQuery = dbQuery.eq('platform', platform as Database['public']['Enums']['Platform']);
     }
     if (query) {
       // Search in title OR message content

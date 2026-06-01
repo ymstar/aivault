@@ -3,11 +3,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { escapeIlike, errorMsg } from "./utils.js";
 
-const SUPABASE_URL = "https://wovrscfgjnbfncemptrf.supabase.co";
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const USER_ID = process.env.AIVAULT_USER_ID;
 
+if (!SUPABASE_URL) {
+  console.error("Error: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) env var is required");
+  process.exit(1);
+}
 if (!SUPABASE_KEY) {
   console.error("Error: SUPABASE_SERVICE_ROLE_KEY env var is required");
   process.exit(1);
@@ -15,8 +20,7 @@ if (!SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Resolve the user ID: use env var or fetch the first user
-async function getUserId() {
+async function getUserId(): Promise<string> {
   if (USER_ID) return USER_ID;
   const { data, error } = await supabase
     .from("users")
@@ -34,7 +38,6 @@ const server = new McpServer({
   version: "1.0.0",
 });
 
-// a) search_conversations
 server.tool(
   "search_conversations",
   "Search conversations by keyword in title or message content",
@@ -46,44 +49,43 @@ server.tool(
   async ({ query, platform, limit }) => {
     try {
       const uid = await getUserId();
-      // Search in conversation titles
+      const escaped = escapeIlike(query);
+
       let titleQuery = supabase
         .from("conversations")
         .select("id, title, platform, message_count, created_at")
         .eq("user_id", uid)
-        .ilike("title", `%${query}%`)
+        .ilike("title", `%${escaped}%`)
         .order("created_at", { ascending: false })
         .limit(limit);
 
       if (platform) titleQuery = titleQuery.eq("platform", platform);
       const { data: titleMatches } = await titleQuery;
 
-      // Search in message content
       const { data: msgMatches } = await supabase
         .from("messages")
         .select("conversation_id, conversations!inner(id, title, platform, message_count, created_at, user_id)")
-        .ilike("content", `%${query}%`)
+        .ilike("content", `%${escaped}%`)
         .eq("conversations.user_id", uid)
         .limit(limit * 3);
 
-      let convMap = new Map();
+      const convMap = new Map<string, NonNullable<typeof titleMatches>[number]>();
       for (const c of titleMatches || []) convMap.set(c.id, c);
       for (const m of msgMatches || []) {
-        const c = m.conversations;
+        const c = (m as any).conversations;
         if (c && !convMap.has(c.id)) convMap.set(c.id, c);
       }
 
       const results = [...convMap.values()].slice(0, limit);
       return {
-        content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }],
       };
     } catch (e) {
-      return { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true };
+      return { content: [{ type: "text" as const, text: `Error: ${errorMsg(e)}` }], isError: true };
     }
   }
 );
 
-// b) get_conversation
 server.tool(
   "get_conversation",
   "Get full conversation details with all messages",
@@ -106,15 +108,14 @@ server.tool(
         .order("created_at", { ascending: true });
 
       return {
-        content: [{ type: "text", text: JSON.stringify({ ...conv, messages: messages || [] }, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify({ ...conv, messages: messages || [] }, null, 2) }],
       };
     } catch (e) {
-      return { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true };
+      return { content: [{ type: "text" as const, text: `Error: ${errorMsg(e)}` }], isError: true };
     }
   }
 );
 
-// c) list_conversations
 server.tool(
   "list_conversations",
   "List recent conversations",
@@ -132,16 +133,15 @@ server.tool(
         .order("created_at", { ascending: false })
         .limit(limit);
       if (platform) q = q.eq("platform", platform);
-      const { data, error } = q;
+      const { data, error } = await q;
       if (error) throw error;
-      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
-      return { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true };
+      return { content: [{ type: "text" as const, text: `Error: ${errorMsg(e)}` }], isError: true };
     }
   }
 );
 
-// d) get_stats
 server.tool(
   "get_stats",
   "Get user's AIVault statistics",
@@ -153,23 +153,37 @@ server.tool(
         .from("conversations")
         .select("*", { count: "exact", head: true })
         .eq("user_id", uid);
-      const { count: msgCount } = await supabase
-        .from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("conversations.user_id", uid);
+
+      // Count messages for this user's conversations
+      const { data: userConvs } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("user_id", uid);
+      const convIds = (userConvs || []).map((c) => c.id);
+
+      let msgCount = 0;
+      if (convIds.length > 0) {
+        const { count } = await supabase
+          .from("messages")
+          .select("*", { count: "exact", head: true })
+          .in("conversation_id", convIds);
+        msgCount = count || 0;
+      }
+
       const { data: platforms } = await supabase
         .from("conversations")
         .select("platform")
         .eq("user_id", uid);
       const uniquePlatforms = [...new Set((platforms || []).map((p) => p.platform))];
+
       return {
         content: [{
-          type: "text",
-          text: JSON.stringify({ total_conversations: convCount || 0, total_messages: msgCount || 0, platforms: uniquePlatforms }, null, 2),
+          type: "text" as const,
+          text: JSON.stringify({ total_conversations: convCount || 0, total_messages: msgCount, platforms: uniquePlatforms }, null, 2),
         }],
       };
     } catch (e) {
-      return { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true };
+      return { content: [{ type: "text" as const, text: `Error: ${errorMsg(e)}` }], isError: true };
     }
   }
 );

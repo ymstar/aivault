@@ -102,7 +102,7 @@ export async function POST(req: Request) {
           const similar = await searchSimilar(queryEmbedding, userId, 10);
 
           if (similar.length > 0) {
-            const convIds = [...new Set(similar.map((r: any) => r.conversation_id))];
+            const convIds = [...new Set(similar.map((r: any) => r.conversation_id))] as string[];
 
             const { data: messages, error: msgErr } = await supabase
               .from('messages')
