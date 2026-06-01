@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2, Crown, Shield, Trash2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Loader2, Crown, Shield, Trash2, Key, Plus, Copy, Check, Eye, EyeOff, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,9 +15,22 @@ interface UserData {
   created_at: string;
 }
 
+interface ApiKey {
+  id: string;
+  key_prefix: string;
+  name: string;
+  last_used_at: string | null;
+  created_at: string;
+}
+
 export default function SettingsPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [newKey, setNewKey] = useState<{ rawKey: string; name: string } | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [keyName, setKeyName] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch('/api/user')
@@ -25,6 +38,49 @@ export default function SettingsPage() {
       .then(data => { setUser(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  const fetchKeys = useCallback(async () => {
+    const res = await fetch('/api/keys');
+    if (res.ok) {
+      const data = await res.json();
+      setKeys(data.keys || []);
+    }
+  }, []);
+
+  useEffect(() => { fetchKeys(); }, [fetchKeys]);
+
+  const generateKey = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: keyName || 'default' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNewKey({ rawKey: data.key, name: data.name });
+        setKeyName('');
+        fetchKeys();
+      }
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const deleteKey = async (id: string) => {
+    if (!confirm('Delete this API key? Any collector using it will stop working.')) return;
+    await fetch(`/api/keys?id=${id}`, { method: 'DELETE' });
+    fetchKeys();
+  };
+
+  const copyKey = () => {
+    if (newKey?.rawKey) {
+      navigator.clipboard.writeText(newKey.rawKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   if (loading) {
     return (
@@ -90,6 +146,90 @@ export default function SettingsPage() {
               Upgrade Plan
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* API Keys */}
+      <Card className="border-zinc-800 bg-zinc-900/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" /> API Keys
+          </CardTitle>
+          <CardDescription className="text-zinc-500">
+            Connect external tools like Claude Code Collector to AIVault
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* New key reveal */}
+          {newKey && (
+            <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-green-400">✓ Key generated — copy it now, it won't be shown again!</p>
+                <button onClick={() => setNewKey(null)} className="text-zinc-500 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-zinc-800 rounded px-3 py-2 text-sm text-green-300 font-mono break-all">
+                  {newKey.rawKey}
+                </code>
+                <Button size="sm" variant="outline" className="border-zinc-700 shrink-0" onClick={copyKey}>
+                  {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Generate form */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={keyName}
+              onChange={(e) => setKeyName(e.target.value)}
+              placeholder="Key name (e.g. mac-collector)"
+              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500"
+            />
+            <Button
+              onClick={generateKey}
+              disabled={generating}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+            >
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+              Generate
+            </Button>
+          </div>
+
+          {/* Key list */}
+          {keys.length > 0 && (
+            <div className="space-y-2">
+              {keys.map((k) => (
+                <div key={k.id} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-800/50 px-4 py-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-white">{k.name}</span>
+                      <code className="text-xs text-zinc-500 font-mono">{k.key_prefix}</code>
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      Created {new Date(k.created_at).toLocaleDateString()}
+                      {k.last_used_at && ` · Last used ${new Date(k.last_used_at).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                    onClick={() => deleteKey(k.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {keys.length === 0 && !newKey && (
+            <p className="text-sm text-zinc-500 text-center py-2">No API keys yet</p>
+          )}
         </CardContent>
       </Card>
 
