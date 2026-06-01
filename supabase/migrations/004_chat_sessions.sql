@@ -1,5 +1,14 @@
 -- 004: Chat sessions, messages, and user LLM configs
 
+-- Utility function for auto-updating updated_at columns
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- User LLM configurations (encrypted API keys)
 CREATE TABLE IF NOT EXISTS user_llm_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
