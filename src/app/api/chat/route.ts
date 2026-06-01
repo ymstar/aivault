@@ -55,6 +55,9 @@ export async function POST(req: Request) {
   const baseUrl = (userBaseUrl || 'https://token-plan-cn.xiaomimimo.com/anthropic/v1').replace(/\/+$/, '');
   const model = userModel || 'mimo-v2-pro';
 
+  // Detect API format: Anthropic if path contains 'anthropic', else OpenAI
+  const isAnthropic = baseUrl.includes('anthropic');
+
   // --- Fetch conversation context from Supabase ---
   const supabase = createServerClient();
   let context = '';
@@ -68,9 +71,7 @@ export async function POST(req: Request) {
         .eq('user_id', userId)
         .single();
 
-      if (convErr) {
-        console.error('Error fetching conversation:', convErr);
-      }
+      if (convErr) console.error('Error fetching conversation:', convErr);
 
       if (conv) {
         const { data: messages, error: msgErr } = await supabase
@@ -80,9 +81,7 @@ export async function POST(req: Request) {
           .order('created_at', { ascending: true })
           .limit(100);
 
-        if (msgErr) {
-          console.error('Error fetching messages:', msgErr);
-        }
+        if (msgErr) console.error('Error fetching messages:', msgErr);
 
         if (messages?.length) {
           context = messages.map((m) => `[${m.role}]: ${m.content}`).join('\n');
@@ -91,17 +90,16 @@ export async function POST(req: Request) {
     } else {
       // Try vector search first, fall back to keyword search
       let usedVectorSearch = false;
-      
+
       try {
         const embeddingReady = await isEmbeddingReady();
         if (embeddingReady) {
           const queryEmbedding = await generateEmbedding(message);
           const similar = await searchSimilar(queryEmbedding, userId, 10);
-          
+
           if (similar.length > 0) {
-            // Get conversation IDs from vector results
             const convIds = [...new Set(similar.map((r: any) => r.conversation_id))];
-            
+
             const { data: messages, error: msgErr } = await supabase
               .from('messages')
               .select('role, content, conversation_id')
@@ -142,13 +140,10 @@ export async function POST(req: Request) {
             .order('created_at', { ascending: false })
             .limit(5);
 
-          if (searchErr) {
-            console.error('Error searching conversations:', searchErr);
-          }
+          if (searchErr) console.error('Error searching conversations:', searchErr);
           convs = data;
         }
 
-        // If no keyword matches found, fall back to recent conversations
         if (!convs?.length) {
           const { data, error: recentErr } = await supabase
             .from('conversations')
@@ -157,9 +152,7 @@ export async function POST(req: Request) {
             .order('created_at', { ascending: false })
             .limit(5);
 
-          if (recentErr) {
-            console.error('Error fetching recent conversations:', recentErr);
-          }
+          if (recentErr) console.error('Error fetching recent conversations:', recentErr);
           convs = data;
         }
 
@@ -172,9 +165,7 @@ export async function POST(req: Request) {
             .order('created_at', { ascending: true })
             .limit(200);
 
-          if (msgErr) {
-            console.error('Error fetching context messages:', msgErr);
-          }
+          if (msgErr) console.error('Error fetching context messages:', msgErr);
 
           if (messages?.length) {
             context = messages.map((m) => `[${m.role}]: ${m.content}`).join('\n');
@@ -184,31 +175,51 @@ export async function POST(req: Request) {
     }
   } catch (err) {
     console.error('Unexpected error fetching context:', err);
-    // Continue without context — don't fail the whole request
   }
 
   const systemPrompt = `You are AIVault AI assistant. You help users understand and explore their AI conversation history. Answer questions based on the provided conversation context.
 
 ${context ? `Conversation context:\n${context}` : 'No relevant conversation context found. Answer based on general knowledge.'}`;
 
-  // --- Call LLM API (Anthropic Messages format) with streaming ---
+  // --- Call LLM API with streaming ---
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 2048,
-        stream: true,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: message.trim() }],
-      }),
-    });
+    if (isAnthropic) {
+      // Anthropic Messages API format
+      response = await fetch(`${baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2048,
+          stream: true,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: message.trim() }],
+        }),
+      });
+    } else {
+      // OpenAI Chat Completions API format
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2048,
+          stream: true,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message.trim() },
+          ],
+        }),
+      });
+    }
   } catch (err) {
     console.error('LLM API fetch error:', err);
     return new Response(
@@ -263,14 +274,25 @@ ${context ? `Conversation context:\n${context}` : 'No relevant conversation cont
             if (!data || data === '[DONE]') continue;
             try {
               const parsed = JSON.parse(data);
-              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                controller.enqueue(encoder.encode(parsed.delta.text));
-                hasContent = true;
+
+              if (isAnthropic) {
+                // Anthropic: content_block_delta → delta.text
+                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                  controller.enqueue(encoder.encode(parsed.delta.text));
+                  hasContent = true;
+                }
+              } else {
+                // OpenAI: choices[0].delta.content
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  controller.enqueue(encoder.encode(content));
+                  hasContent = true;
+                }
               }
             } catch {}
           }
         }
-        // Process any remaining buffer
+        // Process remaining buffer
         if (buffer.trim()) {
           const remaining = buffer.split('\n');
           for (const line of remaining) {
@@ -279,9 +301,17 @@ ${context ? `Conversation context:\n${context}` : 'No relevant conversation cont
             if (!data || data === '[DONE]') continue;
             try {
               const parsed = JSON.parse(data);
-              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                controller.enqueue(encoder.encode(parsed.delta.text));
-                hasContent = true;
+              if (isAnthropic) {
+                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                  controller.enqueue(encoder.encode(parsed.delta.text));
+                  hasContent = true;
+                }
+              } else {
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  controller.enqueue(encoder.encode(content));
+                  hasContent = true;
+                }
               }
             } catch {}
           }
