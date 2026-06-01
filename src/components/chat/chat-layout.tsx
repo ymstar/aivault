@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, Menu, X, Download } from 'lucide-react';
+import { Settings, Download, Plus, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { SessionSidebar } from './session-sidebar';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
 import { LLMConfigDialog } from './llm-config-dialog';
@@ -36,7 +35,6 @@ export function ChatLayout() {
   const [loading, setLoading] = useState(false);
   const [hasConfig, setHasConfig] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const streamingRef = useRef(false);
 
@@ -197,32 +195,54 @@ export function ChatLayout() {
   }, [input, loading, activeSessionId, fetchSessions]);
 
   return (
-    <div className="flex h-screen bg-zinc-950">
-      {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-72' : 'w-0'} transition-all duration-200 overflow-hidden shrink-0`}>
-        <SessionSidebar
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onNewChat={handleNewChat}
-          onDelete={handleDelete}
-          onExport={handleExport}
-        />
+    <div className="flex h-full gap-4">
+      {/* Session list sidebar */}
+      <div className="w-64 shrink-0 flex flex-col border border-zinc-800 rounded-xl bg-zinc-900/50 overflow-hidden">
+        <div className="p-3 border-b border-zinc-800">
+          <Button onClick={handleNewChat} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            New Chat
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                activeSessionId === session.id
+                  ? 'bg-indigo-500/10 text-indigo-400'
+                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+              }`}
+              onClick={() => router.push(`/chat?session=${session.id}`)}
+            >
+              <MessageSquare className="h-4 w-4 shrink-0" />
+              <span className="text-sm truncate flex-1">{session.title}</span>
+              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleExport(session.id); }}
+                  className="p-1 rounded hover:bg-zinc-700"
+                  title="Export"
+                >
+                  <Download className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+          {sessions.length === 0 && (
+            <p className="text-xs text-zinc-600 text-center py-4">No conversations yet</p>
+          )}
+        </div>
       </div>
 
-      {/* Main area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col min-w-0 border border-zinc-800 rounded-xl bg-zinc-900/50 overflow-hidden">
         {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900/30">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="h-8 w-8 text-zinc-400">
-              {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            </Button>
             {currentSession && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-zinc-300 font-medium truncate max-w-xs">
-                  {currentSession.title}
-                </span>
-              </div>
+              <span className="text-sm text-zinc-300 font-medium truncate max-w-xs">
+                {currentSession.title}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1">
