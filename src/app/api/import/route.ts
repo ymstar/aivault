@@ -94,10 +94,22 @@ export async function POST(request: NextRequest) {
       totalMessages += conv.messages.length;
     }
 
+    // Auto-trigger embedding generation (async, don't await)
+    const embedUrl = new URL('/api/embed', request.url).toString();
+    fetch(embedUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: request.headers.get('cookie') || '',
+      },
+      body: JSON.stringify({}),
+    }).catch(err => console.warn('Auto-embed failed:', err));
+
     return NextResponse.json({
       success: true,
       conversations: conversations.length,
       messages: totalMessages,
+      embeddingQueued: true,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error';

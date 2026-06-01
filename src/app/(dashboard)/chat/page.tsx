@@ -72,6 +72,21 @@ export default function ChatPage() {
     setShowSettings(false);
   }, [configDraft]);
 
+  /** Parse an error response from the API, returning a user-friendly string */
+  const parseErrorResponse = async (res: Response): Promise<string> => {
+    try {
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        return json.message || json.error || text;
+      } catch {
+        return text;
+      }
+    } catch {
+      return 'Unknown error';
+    }
+  };
+
   const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || loading) return;
@@ -94,14 +109,25 @@ export default function ChatPage() {
       });
 
       if (!res.ok) {
-        const errText = await res.text().catch(() => 'Unknown error');
-        setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${errText}` }]);
+        const errText = await parseErrorResponse(res);
+
+        // If the error is about missing API key, prompt user to configure
+        if (res.status === 400 && errText.includes('API Key')) {
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: '⚠️ No API Key configured. Please click the ⚙️ Settings button to add your API Key.' },
+          ]);
+          setShowSettings(true);
+        } else {
+          setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${errText}` }]);
+        }
         setLoading(false);
         return;
       }
 
       const reader = res.body?.getReader();
       if (!reader) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: Failed to read response stream.' }]);
         setLoading(false);
         return;
       }
@@ -109,28 +135,68 @@ export default function ChatPage() {
       setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
       const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        setMessages((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last.role === 'assistant') {
-            updated[updated.length - 1] = { ...last, content: last.content + chunk };
-          }
-          return updated;
-        });
+      let hasContent = false;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          if (chunk) hasContent = true;
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === 'assistant') {
+              updated[updated.length - 1] = { ...last, content: last.content + chunk };
+            }
+            return updated;
+          });
+        }
+        // Flush any remaining buffered bytes in the decoder
+        const tail = decoder.decode();
+        if (tail) {
+          hasContent = true;
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === 'assistant') {
+              updated[updated.length - 1] = { ...last, content: last.content + tail };
+            }
+            return updated;
+          });
+        }
+      } catch (streamErr) {
+        console.error('Stream read error:', streamErr);
+        if (!hasContent) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === 'assistant' && !last.content) {
+              updated[updated.length - 1] = { ...last, content: 'Error: Connection interrupted.' };
+            }
+            return updated;
+          });
+        }
       }
-    } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: Connection failed.' }]);
+
+      // If stream ended with no content at all, show a fallback message
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last.role === 'assistant' && !last.content) {
+          updated[updated.length - 1] = { ...last, content: 'No response received. Please try again.' };
+        }
+        return updated;
+      });
+    } catch (err) {
+      console.error('Send message error:', err);
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: Connection failed. Please check your network and try again.' }]);
     } finally {
       setLoading(false);
     }
   }, [input, loading, selectedConv, config]);
 
   const selectedTitle = conversations.find((c) => c.id === selectedConv)?.title;
-  const isConfigured = !!config.apiKey;
+  const hasApiKey = !!config.apiKey;
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] max-w-4xl mx-auto">
@@ -184,10 +250,10 @@ export default function ChatPage() {
           variant="ghost"
           size="sm"
           onClick={() => { setConfigDraft(config); setShowSettings(true); setShowKey(false); }}
-          className={`text-zinc-400 hover:text-white ${!isConfigured ? 'animate-pulse text-amber-400 hover:text-amber-300' : ''}`}
+          className={`text-zinc-400 hover:text-white ${!hasApiKey ? 'animate-pulse text-amber-400 hover:text-amber-300' : ''}`}
         >
           <Settings className="h-4 w-4 mr-1" />
-          {!isConfigured && <span className="text-xs">Setup</span>}
+          {!hasApiKey && <span className="text-xs">Setup</span>}
         </Button>
       </div>
 
@@ -200,7 +266,7 @@ export default function ChatPage() {
                 <MessageSquare className="h-12 w-12 mb-3 opacity-30" />
                 <p className="text-lg font-medium">Ask anything about your conversations</p>
                 <p className="text-sm mt-1">Select a specific conversation as context, or search across all</p>
-                {!isConfigured && (
+                {!hasApiKey && (
                   <button
                     onClick={() => { setConfigDraft(config); setShowSettings(true); setShowKey(false); }}
                     className="mt-4 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm hover:bg-amber-500/20 transition-colors"
@@ -242,7 +308,7 @@ export default function ChatPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-          placeholder={isConfigured ? 'Ask about your conversations...' : 'Configure API Key first...'}
+          placeholder={hasApiKey ? 'Ask about your conversations...' : 'Type a message (configure API Key in ⚙️ settings if needed)'}
           className="flex-1 bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-500 focus-visible:ring-indigo-500"
           disabled={loading}
         />

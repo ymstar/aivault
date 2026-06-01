@@ -44,3 +44,8 @@ next-env.d.ts
 
 # MCP Server
 mcp-server/node_modules/
+
+# Collector (standalone tool)
+collector/node_modules/
+collector/dist/
+collector/.collector-state.json
