@@ -1,5 +1,4 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -16,22 +15,21 @@ export default clerkMiddleware(async (auth, request) => {
 
   // Allow public routes
   if (isPublicRoute(request)) {
-    return NextResponse.next();
+    return;
   }
 
   // For API routes, allow public API routes without auth
   if (pathname.startsWith("/api/")) {
     if (isApiPublicRoute(request)) {
-      return NextResponse.next();
+      return;
     }
     // All other API routes require authentication
     await auth.protect();
-    return NextResponse.next();
+    return;
   }
 
   // All other routes (including /dashboard) require authentication
   await auth.protect();
-  return NextResponse.next();
 });
 
 export const config = {
