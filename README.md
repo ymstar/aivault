@@ -1,36 +1,145 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AIVault
 
-## Getting Started
+**Your AI Data. Secured. Unified. Yours.**
 
-First, run the development server:
+All your AI conversations in one place — import, search, and chat with your knowledge base.
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
+[![Supabase](https://img.shields.io/badge/Supabase-Database-3ecf8e?logo=supabase)](https://supabase.com)
+[![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](https://vercel.com)
+
+---
+
+## Features
+
+- **Multi-Platform Import** — ChatGPT, Claude, Claude Code, and more
+- **Real-Time Collection** — Claude Code Collector automatically captures sessions
+- **Knowledge Base** — Chat with your conversations using any LLM (MiMo, OpenAI, etc.)
+- **Semantic Search** — Vector embeddings for intelligent context retrieval
+- **MCP Server** — Integrate with any AI agent via Model Context Protocol
+- **API Key System** — Secure access for external tools
+- **Multi-Format Parsing** — JSON, Markdown, and terminal output formats
+
+## Quick Start
+
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/ymstar/aivault.git
+cd aivault
+npm install
+```
+
+### 2. Set Up Services
+
+You need accounts on:
+- [Supabase](https://supabase.com) — Database (free tier works)
+- [Clerk](https://clerk.com) — Authentication (free tier works)
+
+### 3. Configure Environment
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in your Supabase and Clerk credentials in `.env.local`.
+
+### 4. Set Up Database
+
+Run the SQL migrations in Supabase SQL Editor (in order):
+1. `supabase/schema.sql` — Core tables
+2. `supabase/migrations/002_pgvector.sql` — Vector search (optional)
+3. `supabase/migrations/003_api_keys.sql` — API key authentication
+
+### 5. Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ymstar/aivault)
 
-## Learn More
+1. Connect your GitHub repo
+2. Add environment variables from `.env.local`
+3. Deploy
 
-To learn more about Next.js, take a look at the following resources:
+## Claude Code Collector
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Real-time sync of Claude Code sessions to AIVault:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cd collector
+npm install && npm run build
 
-## Deploy on Vercel
+# Configure
+echo 'AIVAULT_API_KEY=your-key' > .env
+echo 'AIVAULT_API_URL=https://your-instance.vercel.app' >> .env
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Run
+node dist/index.js
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Generate an API key in AIVault → Settings → API Keys.
+
+## MCP Server
+
+Integrate AIVault with any AI agent:
+
+```json
+{
+  "mcpServers": {
+    "aivault": {
+      "command": "node",
+      "args": ["path/to/aivault/mcp-server/index.js"],
+      "env": {
+        "AIVAULT_API_URL": "https://your-instance.vercel.app",
+        "AIVAULT_API_KEY": "your-key"
+      }
+    }
+  }
+}
+```
+
+## Tech Stack
+
+- **Frontend:** Next.js 15, React 19, Tailwind CSS, shadcn/ui
+- **Backend:** Next.js API Routes, Supabase (PostgreSQL)
+- **Auth:** Clerk
+- **Vector Search:** pgvector (HNSW index)
+- **AI:** MiMo, OpenAI compatible APIs
+
+## Project Structure
+
+```
+aivault/
+├── src/
+│   ├── app/                  # Next.js App Router
+│   │   ├── (auth)/           # Sign in / Sign up
+│   │   ├── (dashboard)/      # Main app pages
+│   │   └── api/              # API routes
+│   ├── components/           # React components
+│   ├── lib/                  # Utilities & services
+│   │   ├── parsers/          # ChatGPT, Claude, Claude Code parsers
+│   │   ├── embeddings.ts     # Vector embedding generation
+│   │   ├── supabase.ts       # Database client
+│   │   └── api-keys.ts       # API key management
+│   └── middleware.ts         # Auth middleware
+├── collector/                # Claude Code session collector (standalone)
+├── mcp-server/               # MCP server for agent integration
+├── supabase/
+│   └── migrations/           # Database migrations
+└── docs/
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## License
+
+[Apache License 2.0](LICENSE)

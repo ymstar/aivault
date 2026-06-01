@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -30,8 +28,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — NEVER commit real credentials
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -40,12 +39,19 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Prisma generated client
 /src/generated/prisma
+/tsconfig.tsbuildinfo
 
 # MCP Server
 mcp-server/node_modules/
+mcp-server/package-lock.json
 
 # Collector (standalone tool)
 collector/node_modules/
 collector/dist/
 collector/.collector-state.json
+collector/package-lock.json
+
+# Supabase local
+supabase/.temp
