@@ -1,4 +1,4 @@
-import type { LLMConfig, LLMProvider, ChatMessage } from './types.js';
+import type { LLMConfig, LLMProvider, ChatMessage } from './types';
 
 export class AnthropicProvider implements LLMProvider {
   private config: LLMConfig;

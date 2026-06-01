@@ -1,8 +1,8 @@
-import type { LLMConfig, LLMProvider, ChatMessage } from './types.js';
-import { OpenAIProvider } from './openai-provider.js';
-import { AnthropicProvider } from './anthropic-provider.js';
+import type { LLMConfig, LLMProvider, ChatMessage } from './types';
+import { OpenAIProvider } from './openai-provider';
+import { AnthropicProvider } from './anthropic-provider';
 
-export type { LLMConfig, ChatMessage, LLMProvider } from './types.js';
+export type { LLMConfig, ChatMessage, LLMProvider } from './types';
 
 export function createProvider(config: LLMConfig): LLMProvider {
   if (config.providerType === 'anthropic' || config.baseUrl.includes('anthropic')) {
