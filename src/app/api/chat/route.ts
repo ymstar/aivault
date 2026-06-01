@@ -52,7 +52,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const baseUrl = (userBaseUrl || 'https://token-plan-cn.xiaomimimo.com/anthropic/v1').replace(/\/+$/, '');
+  let baseUrl = (userBaseUrl || 'https://token-plan-cn.xiaomimimo.com/anthropic/v1').replace(/\/+$/, '');
+  // Auto-fix: if baseUrl ends with /anthropic but no /v1, append /v1
+  if (baseUrl.endsWith('/anthropic') || baseUrl.endsWith('anthropic')) {
+    baseUrl = baseUrl + '/v1';
+  }
   const model = userModel || 'mimo-v2-pro';
 
   // Detect API format: Anthropic if path contains 'anthropic', else OpenAI

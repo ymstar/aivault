@@ -25,7 +25,7 @@ interface ChatConfig {
 
 const DEFAULT_CONFIG: ChatConfig = {
   apiKey: '',
-  baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic/v1',
+  baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
   model: 'mimo-v2-pro',
 };
 
@@ -359,7 +359,7 @@ export default function ChatPage() {
                   type="text"
                   value={configDraft.baseUrl}
                   onChange={(e) => setConfigDraft({ ...configDraft, baseUrl: e.target.value })}
-                  placeholder="https://api.example.com/v1"
+                  placeholder="https://token-plan-cn.xiaomimimo.com/anthropic"
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600"
                 />
                 <p className="text-xs text-zinc-500 mt-1">OpenAI / Anthropic 兼容的 API 地址</p>
