@@ -2,9 +2,13 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { AIVaultSync } from './sync';
 import { SessionWatcher } from './watcher';
+import { setupProxy } from './proxy';
 
 // Load env from local .env
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
+// Enable HTTPS proxy if configured
+setupProxy();
 
 const API_URL = process.env.AIVAULT_API_URL || 'https://aivault-one.vercel.app';
 const API_KEY = process.env.AIVAULT_API_KEY || '';
