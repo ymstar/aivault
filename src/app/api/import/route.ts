@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { createServerClient } from '@/lib/supabase';
 import { getDbUserId } from '@/lib/auth';
 import { parseExport } from '@/lib/parsers';
@@ -6,9 +7,16 @@ import type { ImportedConversation } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getDbUserId();
+    // Debug: check env vars
+    const hasSecretKey = !!process.env.CLERK_SECRET_KEY;
+    const hasPublishableKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    console.log('[import] clerk env:', { hasSecretKey, hasPublishableKey });
+    
+    const authResult = await auth();
+    console.log('[import] auth result:', JSON.stringify({ userId: authResult.userId, sessionId: authResult.sessionId }));
+    const userId = authResult.userId;
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized', debug: { hasUserId: !!authResult.userId, hasSessionId: !!authResult.sessionId, hasSecretKey, hasPublishableKey } }, { status: 401 });
     }
 
     const formData = await request.formData();
