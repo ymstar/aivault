@@ -45,8 +45,13 @@ export class AIVaultSync {
       const res = await fetch(`${this.apiUrl}/api/collector`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
       });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.error(`  API responded ${res.status}: ${body}`);
+      }
       return res.ok;
-    } catch {
+    } catch (err: any) {
+      console.error(`  Network error: ${err.message || err}`);
       return false;
     }
   }
