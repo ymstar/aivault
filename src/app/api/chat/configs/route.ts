@@ -43,6 +43,16 @@ export async function POST(req: Request) {
   const prefix = apiKey.slice(0, 8);
 
   const supabase = createServerClient();
+
+  // Check if user has any existing configs
+  const { data: existingConfigs } = await supabase
+    .from('user_llm_configs')
+    .select('id')
+    .eq('user_id', userId);
+
+  // Auto-set as default if it's the first config
+  const isDefault = !existingConfigs || existingConfigs.length === 0;
+
   const { data, error } = await supabase
     .from('user_llm_configs')
     .insert({
@@ -55,6 +65,7 @@ export async function POST(req: Request) {
       api_key_iv: iv,
       api_key_tag: tag,
       api_key_prefix: prefix,
+      is_default: isDefault,
     })
     .select('id, label, provider_type, base_url, model, api_key_prefix, is_default, created_at')
     .single();
