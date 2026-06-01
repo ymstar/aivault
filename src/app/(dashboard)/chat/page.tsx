@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Loader2, MessageSquare, ChevronDown } from 'lucide-react';
+import { Send, Loader2, MessageSquare, ChevronDown, Settings, X, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +17,18 @@ interface Conversation {
   platform: string;
 }
 
+interface ChatConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
+const DEFAULT_CONFIG: ChatConfig = {
+  apiKey: '',
+  baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic/v1',
+  model: 'mimo-v2-pro',
+};
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -24,7 +36,24 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<string>('');
   const [showConvPicker, setShowConvPicker] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [config, setConfig] = useState<ChatConfig>(DEFAULT_CONFIG);
+  const [configDraft, setConfigDraft] = useState<ChatConfig>(DEFAULT_CONFIG);
+  const [showKey, setShowKey] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load config from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('aivault-chat-config');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const loaded = { ...DEFAULT_CONFIG, ...parsed };
+        setConfig(loaded);
+        setConfigDraft(loaded);
+      } catch {}
+    }
+  }, []);
 
   useEffect(() => {
     fetch('/api/conversations?limit=50')
@@ -36,6 +65,12 @@ export default function ChatPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  const saveConfig = useCallback(() => {
+    setConfig(configDraft);
+    localStorage.setItem('aivault-chat-config', JSON.stringify(configDraft));
+    setShowSettings(false);
+  }, [configDraft]);
 
   const sendMessage = useCallback(async () => {
     const text = input.trim();
@@ -49,11 +84,18 @@ export default function ChatPage() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, conversationId: selectedConv || undefined }),
+        body: JSON.stringify({
+          message: text,
+          conversationId: selectedConv || undefined,
+          apiKey: config.apiKey || undefined,
+          baseUrl: config.baseUrl || undefined,
+          model: config.model || undefined,
+        }),
       });
 
       if (!res.ok) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: Failed to get response.' }]);
+        const errText = await res.text().catch(() => 'Unknown error');
+        setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${errText}` }]);
         setLoading(false);
         return;
       }
@@ -85,56 +127,68 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, selectedConv]);
+  }, [input, loading, selectedConv, config]);
 
   const selectedTitle = conversations.find((c) => c.id === selectedConv)?.title;
+  const isConfigured = !!config.apiKey;
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] max-w-4xl mx-auto">
-      {/* Context selector */}
-      <div className="mb-4 flex items-center gap-2">
-        <span className="text-sm text-zinc-400">Context:</span>
-        <div className="relative">
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-            onClick={() => setShowConvPicker(!showConvPicker)}
-          >
-            <MessageSquare className="h-4 w-4 mr-2" />
-            {selectedTitle || 'All conversations'}
-            <ChevronDown className="h-4 w-4 ml-2" />
-          </Button>
-          {showConvPicker && (
-            <div className="absolute top-full left-0 mt-1 w-72 max-h-60 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl z-50">
-              <button
-                className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
-                onClick={() => { setSelectedConv(''); setShowConvPicker(false); }}
-              >
-                All conversations
-              </button>
-              {conversations.map((c) => (
+      {/* Top bar */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-zinc-400">Context:</span>
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              onClick={() => setShowConvPicker(!showConvPicker)}
+            >
+              <MessageSquare className="h-4 w-4 mr-2" />
+              {selectedTitle || 'All conversations'}
+              <ChevronDown className="h-4 w-4 ml-2" />
+            </Button>
+            {showConvPicker && (
+              <div className="absolute top-full left-0 mt-1 w-72 max-h-60 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl z-50">
                 <button
-                  key={c.id}
-                  className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 truncate"
-                  onClick={() => { setSelectedConv(c.id); setShowConvPicker(false); }}
+                  className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
+                  onClick={() => { setSelectedConv(''); setShowConvPicker(false); }}
                 >
-                  {c.title || 'Untitled'}
+                  All conversations
                 </button>
-              ))}
-            </div>
+                {conversations.map((c) => (
+                  <button
+                    key={c.id}
+                    className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 truncate"
+                    onClick={() => { setSelectedConv(c.id); setShowConvPicker(false); }}
+                  >
+                    {c.title || 'Untitled'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {selectedConv && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-zinc-500 hover:text-zinc-300"
+              onClick={() => setSelectedConv('')}
+            >
+              Clear
+            </Button>
           )}
         </div>
-        {selectedConv && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-zinc-500 hover:text-zinc-300"
-            onClick={() => setSelectedConv('')}
-          >
-            Clear
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setConfigDraft(config); setShowSettings(true); setShowKey(false); }}
+          className={`text-zinc-400 hover:text-white ${!isConfigured ? 'animate-pulse text-amber-400 hover:text-amber-300' : ''}`}
+        >
+          <Settings className="h-4 w-4 mr-1" />
+          {!isConfigured && <span className="text-xs">Setup</span>}
+        </Button>
       </div>
 
       {/* Messages */}
@@ -146,6 +200,14 @@ export default function ChatPage() {
                 <MessageSquare className="h-12 w-12 mb-3 opacity-30" />
                 <p className="text-lg font-medium">Ask anything about your conversations</p>
                 <p className="text-sm mt-1">Select a specific conversation as context, or search across all</p>
+                {!isConfigured && (
+                  <button
+                    onClick={() => { setConfigDraft(config); setShowSettings(true); setShowKey(false); }}
+                    className="mt-4 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm hover:bg-amber-500/20 transition-colors"
+                  >
+                    ⚙️ Configure API Key to start chatting
+                  </button>
+                )}
               </div>
             )}
             {messages.map((msg, i) => (
@@ -180,7 +242,7 @@ export default function ChatPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-          placeholder="Ask about your conversations..."
+          placeholder={isConfigured ? 'Ask about your conversations...' : 'Configure API Key first...'}
           className="flex-1 bg-zinc-800 border-zinc-700 text-zinc-200 placeholder:text-zinc-500 focus-visible:ring-indigo-500"
           disabled={loading}
         />
@@ -192,6 +254,74 @@ export default function ChatPage() {
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowSettings(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">Chat Settings</h3>
+              <button onClick={() => setShowSettings(false)} className="text-zinc-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1.5">API Key</label>
+                <div className="relative">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={configDraft.apiKey}
+                    onChange={(e) => setConfigDraft({ ...configDraft, apiKey: e.target.value })}
+                    placeholder="sk-..."
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 pr-10 text-white text-sm focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                  >
+                    {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1.5">Base URL</label>
+                <input
+                  type="text"
+                  value={configDraft.baseUrl}
+                  onChange={(e) => setConfigDraft({ ...configDraft, baseUrl: e.target.value })}
+                  placeholder="https://api.example.com/v1"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600"
+                />
+                <p className="text-xs text-zinc-500 mt-1">OpenAI / Anthropic 兼容的 API 地址</p>
+              </div>
+
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1.5">Model</label>
+                <input
+                  type="text"
+                  value={configDraft.model}
+                  onChange={(e) => setConfigDraft({ ...configDraft, model: e.target.value })}
+                  placeholder="mimo-v2-pro"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="ghost" onClick={() => setShowSettings(false)} className="text-zinc-400">
+                Cancel
+              </Button>
+              <Button onClick={saveConfig} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

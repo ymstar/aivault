@@ -7,16 +7,23 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const { message, conversationId } = await req.json();
+  const { message, conversationId, apiKey: userApiKey, baseUrl: userBaseUrl, model: userModel } = await req.json();
   if (!message) {
     return new Response('Message is required', { status: 400 });
   }
+
+  const apiKey = userApiKey || process.env.MIMO_API_KEY;
+  if (!apiKey) {
+    return new Response('Please configure API Key in Chat settings', { status: 400 });
+  }
+
+  const baseUrl = (userBaseUrl || 'https://token-plan-cn.xiaomimimo.com/anthropic/v1').replace(/\/+$/, '');
+  const model = userModel || 'mimo-v2-pro';
 
   const supabase = createServerClient();
   let context = '';
 
   if (conversationId) {
-    // Fetch specific conversation's messages
     const { data: conv } = await supabase
       .from('conversations')
       .select('id')
@@ -37,9 +44,8 @@ export async function POST(req: Request) {
       }
     }
   } else {
-    // Search across user's conversations for relevant context
     const keywords = message.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
-    
+
     let convQuery = supabase
       .from('conversations')
       .select('id, title')
@@ -75,16 +81,16 @@ export async function POST(req: Request) {
 
 ${context ? `Conversation context:\n${context}` : 'No relevant conversation context found. Answer based on general knowledge.'}`;
 
-  // Call MiMo LLM API (Anthropic Messages format) with streaming
-  const response = await fetch('https://token-plan-cn.xiaomimimo.com/anthropic/v1/messages', {
+  // Call LLM API (Anthropic Messages format) with streaming
+  const response = await fetch(`${baseUrl}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': 'sk-JtJbKGBz6n5GEMw8YVAG8A8bbJVOYjvA3sSFNzaVvR7OW6ku',
+      'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'mimo-v2-pro',
+      model,
       max_tokens: 2048,
       stream: true,
       system: systemPrompt,
@@ -94,11 +100,11 @@ ${context ? `Conversation context:\n${context}` : 'No relevant conversation cont
 
   if (!response.ok) {
     const err = await response.text();
-    console.error('MiMo API error:', err);
-    return new Response('LLM request failed', { status: 500 });
+    console.error('LLM API error:', err);
+    return new Response(`LLM request failed: ${err.slice(0, 200)}`, { status: 502 });
   }
 
-  // Stream SSE from MiMo to client
+  // Stream SSE from LLM to client
   const reader = response.body?.getReader();
   if (!reader) return new Response('No stream', { status: 500 });
 
