@@ -2,16 +2,16 @@ import * as chokidar from 'chokidar';
 import * as path from 'path';
 import * as os from 'os';
 import { parseSessionFile, ParsedSession } from './parser';
-import { SupabaseSync } from './sync';
+import { AIVaultSync } from './sync';
 
 const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
 export class SessionWatcher {
-  private sync: SupabaseSync;
+  private sync: AIVaultSync;
   private processing = new Set<string>();
   private watcher: chokidar.FSWatcher | null = null;
 
-  constructor(sync: SupabaseSync) {
+  constructor(sync: AIVaultSync) {
     this.sync = sync;
   }
 

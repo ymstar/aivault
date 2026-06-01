@@ -1,4 +1,3 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ParsedSession } from './parser';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -22,111 +21,74 @@ function saveState(state: CollectorState) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-export class SupabaseSync {
-  private supabase: SupabaseClient;
-  private userId: string | null = null;
+/**
+ * Syncs parsed Claude Code sessions to AIVault via its REST API.
+ * No direct database access — purely HTTP client.
+ */
+export class AIVaultSync {
+  private apiUrl: string;
+  private apiKey: string;
   private state: CollectorState;
 
-  constructor(supabaseUrl: string, serviceRoleKey: string) {
-    this.supabase = createClient(supabaseUrl, serviceRoleKey);
+  constructor(apiUrl: string, apiKey: string) {
+    // Normalize: remove trailing slash
+    this.apiUrl = apiUrl.replace(/\/+$/, '');
+    this.apiKey = apiKey;
     this.state = loadState();
   }
 
-  async init(userEmail: string): Promise<void> {
-    const { data, error } = await this.supabase
-      .from('users')
-      .select('id')
-      .eq('email', userEmail)
-      .single();
-
-    if (error || !data) {
-      throw new Error(`User not found: ${userEmail}. Error: ${error?.message}`);
+  /**
+   * Verify connectivity to AIVault API.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.apiUrl}/api/conversations?limit=1`, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
-    this.userId = data.id;
-    console.log(`✓ Syncing as user ${userEmail} (${this.userId})`);
   }
 
+  /**
+   * Check if a session was already synced with the same message count.
+   */
   isProcessed(sessionId: string, messageCount: number): boolean {
     const prev = this.state.processedSessions[sessionId];
     return !!prev && prev.messageCount === messageCount;
   }
 
-  async syncSession(session: ParsedSession): Promise<{ created: boolean; conversationId: string }> {
-    if (!this.userId) throw new Error('Not initialized — call init() first');
-
-    // Check if conversation already exists for this session
-    const { data: existing } = await this.supabase
-      .from('conversations')
-      .select('id, message_count')
-      .eq('user_id', this.userId)
-      .ilike('title', `%${session.sessionId.slice(0, 8)}%`)
-      .limit(1)
-      .single();
-
-    if (existing) {
-      // Already synced — skip if same message count
-      const prev = this.state.processedSessions[session.sessionId];
-      if (prev && prev.messageCount >= session.messages.length) {
-        return { created: false, conversationId: existing.id };
-      }
-      
-      // Update existing conversation with new messages
-      await this.upsertMessages(existing.id, session);
-      this.markProcessed(session.sessionId, session.messages.length);
-      return { created: false, conversationId: existing.id };
-    }
-
-    // Create new conversation
-    const { data: conv, error: convErr } = await this.supabase
-      .from('conversations')
-      .insert({
-        user_id: this.userId,
-        platform: 'CLAUDE',
+  /**
+   * Sync a parsed session to AIVault.
+   */
+  async syncSession(session: ParsedSession): Promise<{ action: string; conversationId: string }> {
+    const res = await fetch(`${this.apiUrl}/api/collector/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        sessionId: session.sessionId,
         title: session.title,
-        message_count: session.messages.length,
-        created_at: session.createdAt || new Date().toISOString(),
-        imported_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+        messages: session.messages,
+        createdAt: session.createdAt,
+        model: session.model,
+      }),
+    });
 
-    if (convErr || !conv) {
-      throw new Error(`Failed to create conversation: ${convErr?.message}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => 'Unknown error');
+      throw new Error(`API error ${res.status}: ${errText}`);
     }
 
-    // Insert messages
-    await this.upsertMessages(conv.id, session);
+    const result = await res.json() as { action: string; conversationId: string };
+    
+    // Mark as processed
     this.markProcessed(session.sessionId, session.messages.length);
-
-    console.log(`✓ Synced session ${session.sessionId.slice(0, 8)} — ${session.messages.length} messages`);
-    return { created: true, conversationId: conv.id };
-  }
-
-  private async upsertMessages(conversationId: string, session: ParsedSession) {
-    // Delete existing messages for this conversation to avoid duplicates
-    await this.supabase
-      .from('messages')
-      .delete()
-      .eq('conversation_id', conversationId);
-
-    // Insert all messages in batches of 50
-    for (let i = 0; i < session.messages.length; i += 50) {
-      const batch = session.messages.slice(i, i + 50);
-      const rows = batch.map((msg) => ({
-        conversation_id: conversationId,
-        role: msg.role,
-        content: msg.content,
-        created_at: msg.timestamp || new Date().toISOString(),
-      }));
-
-      const { error } = await this.supabase
-        .from('messages')
-        .insert(rows);
-
-      if (error) {
-        console.error(`Failed to insert messages batch ${i}:`, error.message);
-      }
-    }
+    
+    return result;
   }
 
   private markProcessed(sessionId: string, messageCount: number) {

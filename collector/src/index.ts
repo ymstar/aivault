@@ -1,37 +1,50 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { SupabaseSync } from './sync';
+import { AIVaultSync } from './sync';
 import { SessionWatcher } from './watcher';
 
-// Load env from aivault project root
-dotenv.config({ path: path.join(__dirname, '..', '..', '.env.local') });
+// Load env from local .env
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const USER_EMAIL = process.env.COLLECTOR_USER_EMAIL || 'yangming@pingbase.cn';
+const API_URL = process.env.AIVAULT_API_URL || 'https://aivault-one.vercel.app';
+const API_KEY = process.env.AIVAULT_API_KEY || '';
 
 async function main() {
   console.log('╔═══════════════════════════════════════╗');
   console.log('║    AIVault — Claude Code Collector     ║');
   console.log('╚═══════════════════════════════════════╝\n');
 
-  if (!SUPABASE_URL || !SERVICE_KEY) {
-    console.error('✗ Missing environment variables:');
-    console.error('  NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL');
-    console.error('  SUPABASE_SERVICE_ROLE_KEY');
-    console.error('\nSet them in /home/ubuntu/aivault/.env.local');
+  if (!API_KEY) {
+    console.error('✗ Missing AIVAULT_API_KEY');
+    console.error('');
+    console.error('Setup:');
+    console.error('  1. Go to AIVault Dashboard → Settings → API Keys');
+    console.error('  2. Generate a new key');
+    console.error('  3. Create collector/.env:');
+    console.error('     AIVAULT_API_KEY=av_xxxxxxxxxxxx');
+    console.error('');
     process.exit(1);
   }
 
-  const sync = new SupabaseSync(SUPABASE_URL, SERVICE_KEY);
-  await sync.init(USER_EMAIL);
+  console.log(`API: ${API_URL}`);
+  console.log(`Key: ${API_KEY.slice(0, 10)}...`);
+
+  const sync = new AIVaultSync(API_URL, API_KEY);
+
+  // Test connection
+  console.log('\n⏳ Connecting to AIVault...');
+  const ok = await sync.ping();
+  if (!ok) {
+    console.error('✗ Cannot reach AIVault API. Check AIVAULT_API_URL and network.');
+    process.exit(1);
+  }
+  console.log('✓ Connected to AIVault\n');
 
   const watcher = new SessionWatcher(sync);
   await watcher.start();
 
-  // Keep alive
   console.log('Press Ctrl+C to stop.\n');
-  
+
   process.on('SIGINT', async () => {
     console.log('\n⚡ Shutting down...');
     await watcher.stop();
