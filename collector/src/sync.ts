@@ -42,7 +42,7 @@ export class AIVaultSync {
    */
   async ping(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.apiUrl}/api/conversations?limit=1`, {
+      const res = await fetch(`${this.apiUrl}/api/collector`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
       });
       return res.ok;
