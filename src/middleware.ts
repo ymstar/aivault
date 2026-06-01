@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
 
 const isApiPublicRoute = createRouteMatcher([
   "/api/stripe/webhook(.*)",
+  "/api/collector(.*)",  // Collector uses API key auth, not Clerk
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
