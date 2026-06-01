@@ -52,13 +52,27 @@ export async function POST(req: Request) {
   // Load LLM config
   let configId: string | null = session.provider_id ?? null;
   if (!configId) {
+    // Try to get default config first
     const { data: defaultConfig } = await supabase
       .from('user_llm_configs')
       .select('id')
       .eq('user_id', userId)
       .eq('is_default', true)
       .single();
-    configId = defaultConfig?.id ?? null;
+
+    if (defaultConfig) {
+      configId = defaultConfig.id;
+    } else {
+      // Fall back to first available config
+      const { data: firstConfig } = await supabase
+        .from('user_llm_configs')
+        .select('id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      configId = firstConfig?.id ?? null;
+    }
   }
 
   if (!configId) {

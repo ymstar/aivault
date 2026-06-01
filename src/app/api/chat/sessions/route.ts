@@ -44,7 +44,20 @@ export async function POST(req: Request) {
       .eq('user_id', userId)
       .eq('is_default', true)
       .single();
-    providerId = defaultConfig?.id;
+
+    if (defaultConfig) {
+      providerId = defaultConfig.id;
+    } else {
+      // Fall back to first available config
+      const { data: firstConfig } = await supabase
+        .from('user_llm_configs')
+        .select('id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      providerId = firstConfig?.id;
+    }
   }
 
   const { data, error } = await supabase
