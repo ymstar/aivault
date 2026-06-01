@@ -31,7 +31,23 @@ export async function GET(request: NextRequest) {
       dbQuery = dbQuery.eq('platform', platform);
     }
     if (query) {
-      dbQuery = dbQuery.ilike('title', `%${query}%`);
+      // Search in title OR message content
+      const escaped = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+      
+      // First find conversation IDs that have matching messages
+      const { data: matchingMsgs } = await supabase
+        .from('messages')
+        .select('conversation_id')
+        .ilike('content', `%${escaped}%`)
+        .limit(100);
+      
+      const matchConvIds = [...new Set((matchingMsgs || []).map(m => m.conversation_id))];
+      
+      if (matchConvIds.length > 0) {
+        dbQuery = dbQuery.or(`title.ilike.%${escaped}%,id.in.(${matchConvIds.join(',')})`);
+      } else {
+        dbQuery = dbQuery.ilike('title', `%${escaped}%`);
+      }
     }
 
     const { data, error, count } = await dbQuery;
