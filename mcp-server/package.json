@@ -1,0 +1,13 @@
+{
+  "name": "aivault-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for AIVault - AI conversation data sovereignty",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@supabase/supabase-js": "^2.50.0"
+  }
+}

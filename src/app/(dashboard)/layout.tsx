@@ -16,6 +16,7 @@ const sidebarLinks = [
   { href: '/conversations', label: 'Conversations', icon: MessageSquare },
   { href: '/import', label: 'Import', icon: Upload },
   { href: '/search', label: 'Search', icon: Search },
+  { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

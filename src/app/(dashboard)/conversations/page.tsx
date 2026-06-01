@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { MessageSquare, Search, LayoutGrid, List, Upload, Loader2 } from 'lucide-react';
+import { MessageSquare, Search, LayoutGrid, List, Upload, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,18 @@ export default function ConversationsPage() {
   }, [search]);
   const [platform, setPlatform] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+
+  const handleDelete = useCallback(async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this conversation?')) return;
+    try {
+      const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setConversations(prev => prev.filter(c => c.id !== id));
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const fetchConversations = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -136,9 +148,18 @@ export default function ConversationsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <span className="text-xl">{platformEmoji[conv.platform] || '💬'}</span>
-                    <Badge variant="outline" className={platformColors[conv.platform] || ''}>
-                      {conv.platform}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={platformColors[conv.platform] || ''}>
+                        {conv.platform}
+                      </Badge>
+                      <button
+                        onClick={(e) => handleDelete(e, conv.id)}
+                        className="p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        aria-label="Delete conversation"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                   <h3 className="font-medium line-clamp-2 mb-2">{conv.title}</h3>
                   <div className="flex items-center justify-between text-xs text-zinc-500">
@@ -170,7 +191,16 @@ export default function ConversationsPage() {
                     </div>
                   </div>
                 </div>
-                <span className="text-sm text-zinc-500">{new Date(conv.created_at).toLocaleDateString()}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-zinc-500">{new Date(conv.created_at).toLocaleDateString()}</span>
+                  <button
+                    onClick={(e) => handleDelete(e, conv.id)}
+                    className="p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    aria-label="Delete conversation"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </Link>
           ))}
