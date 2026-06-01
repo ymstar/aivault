@@ -63,6 +63,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const pageTitle = sidebarLinks.find(l => pathname.startsWith(l.href))?.label || 'Dashboard';
 
+  // Chat page manages its own full-height layout
+  if (pathname === '/chat') {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex h-screen bg-zinc-950">
       {/* Desktop sidebar */}

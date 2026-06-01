@@ -283,6 +283,151 @@ export type Database = {
           },
         ]
       }
+      user_llm_configs: {
+        Row: {
+          id: string
+          user_id: string
+          label: string
+          provider_type: 'openai_compatible' | 'anthropic'
+          base_url: string
+          model: string
+          api_key_encrypted: string
+          api_key_iv: string
+          api_key_tag: string
+          api_key_prefix: string | null
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          label: string
+          provider_type: 'openai_compatible' | 'anthropic'
+          base_url: string
+          model: string
+          api_key_encrypted: string
+          api_key_iv: string
+          api_key_tag: string
+          api_key_prefix?: string | null
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          label?: string
+          provider_type?: 'openai_compatible' | 'anthropic'
+          base_url?: string
+          model?: string
+          api_key_encrypted?: string
+          api_key_iv?: string
+          api_key_tag?: string
+          api_key_prefix?: string | null
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'user_llm_configs_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      chat_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          provider_id: string | null
+          model_override: string | null
+          rag_enabled: boolean
+          message_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title?: string
+          provider_id?: string | null
+          model_override?: string | null
+          rag_enabled?: boolean
+          message_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          provider_id?: string | null
+          model_override?: string | null
+          rag_enabled?: boolean
+          message_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'chat_sessions_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'chat_sessions_provider_id_fkey'
+            columns: ['provider_id']
+            isOneToOne: false
+            referencedRelation: 'user_llm_configs'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          id: string
+          session_id: string
+          role: 'user' | 'assistant' | 'system'
+          content: string
+          token_count: number | null
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          role: 'user' | 'assistant' | 'system'
+          content: string
+          token_count?: number | null
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          role?: 'user' | 'assistant' | 'system'
+          content?: string
+          token_count?: number | null
+          metadata?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'chat_messages_session_id_fkey'
+            columns: ['session_id']
+            isOneToOne: false
+            referencedRelation: 'chat_sessions'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: Record<string, never>
     Functions: {

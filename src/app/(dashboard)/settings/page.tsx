@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Crown, Shield, Trash2, Key, Plus, Copy, Check, Eye, EyeOff, X } from 'lucide-react';
+import { Loader2, Crown, Shield, Trash2, Key, Plus, Copy, Check, Eye, EyeOff, X, Zap, Star } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { LLMConfigDialog } from '@/components/chat/llm-config-dialog';
 
 interface UserData {
   id: string;
@@ -23,6 +24,16 @@ interface ApiKey {
   created_at: string;
 }
 
+interface LLMConfig {
+  id: string;
+  label: string;
+  provider_type: string;
+  base_url: string;
+  model: string;
+  api_key_prefix: string | null;
+  is_default: boolean;
+}
+
 export default function SettingsPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,6 +42,8 @@ export default function SettingsPage() {
   const [generating, setGenerating] = useState(false);
   const [keyName, setKeyName] = useState('');
   const [copied, setCopied] = useState(false);
+  const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([]);
+  const [showLlmDialog, setShowLlmDialog] = useState(false);
 
   useEffect(() => {
     fetch('/api/user')
@@ -48,6 +61,16 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => { fetchKeys(); }, [fetchKeys]);
+
+  const fetchLlmConfigs = useCallback(async () => {
+    const res = await fetch('/api/chat/configs');
+    if (res.ok) {
+      const data = await res.json();
+      setLlmConfigs(data.configs || []);
+    }
+  }, []);
+
+  useEffect(() => { fetchLlmConfigs(); }, [fetchLlmConfigs]);
 
   const generateKey = async () => {
     setGenerating(true);
@@ -233,6 +256,76 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* LLM Providers */}
+      <Card className="border-zinc-800 bg-zinc-900/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5" /> LLM Providers
+          </CardTitle>
+          <CardDescription className="text-zinc-500">
+            Configure AI model providers for the Chat feature
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {llmConfigs.map((c) => (
+            <div key={c.id} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-800/50 px-4 py-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-white">{c.label}</span>
+                  {c.is_default && <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400">default</span>}
+                </div>
+                <p className="text-xs text-zinc-500">
+                  {c.provider_type === 'anthropic' ? 'Anthropic' : 'OpenAI Compatible'} · {c.model} · {c.api_key_prefix}...
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                {!c.is_default && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-zinc-500 hover:text-yellow-400 hover:bg-zinc-800"
+                    onClick={async () => {
+                      await fetch(`/api/chat/configs/${c.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ isDefault: true }),
+                      });
+                      fetchLlmConfigs();
+                    }}
+                  >
+                    <Star className="w-4 h-4" />
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                  onClick={async () => {
+                    if (!confirm('Delete this LLM config?')) return;
+                    await fetch(`/api/chat/configs/${c.id}`, { method: 'DELETE' });
+                    fetchLlmConfigs();
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          {llmConfigs.length === 0 && (
+            <p className="text-sm text-zinc-500 text-center py-2">No LLM providers configured</p>
+          )}
+
+          <Button
+            variant="outline"
+            className="w-full border-zinc-700"
+            onClick={() => setShowLlmDialog(true)}
+          >
+            <Plus className="w-4 h-4 mr-1" /> Add Provider
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Danger Zone */}
       <Card className="border-red-500/20 bg-red-500/5">
         <CardHeader>
@@ -249,6 +342,12 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <LLMConfigDialog
+        open={showLlmDialog}
+        onClose={() => setShowLlmDialog(false)}
+        onConfigChange={fetchLlmConfigs}
+      />
     </div>
   );
 }
