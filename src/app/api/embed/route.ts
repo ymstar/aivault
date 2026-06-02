@@ -5,8 +5,9 @@ import { generateEmbedding, batchGenerateEmbeddings } from '@/lib/embeddings';
 
 /**
  * POST /api/embed — Generate embeddings for conversation messages.
- * Body: { conversationId?: string } — if provided, embed only that conversation.
- *        Otherwise, embed all messages without embeddings.
+ * Body: { conversationId?: string, batchSize?: number }
+ *   - conversationId: embed only that conversation
+ *   - batchSize: max messages to process per run (default 500)
  */
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { conversationId } = body;
+  const { conversationId, batchSize = 500 } = body;
 
   const supabase = createServerClient();
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       .from('conversations')
       .select('id')
       .eq('user_id', user.id);
-    const userConvIds = new Set(userConvs?.map(c => c.id) || []);
+    const userConvIds = new Set(userConvs?.map((c) => c.id) || []);
 
     if (userConvIds.size === 0) {
       return NextResponse.json({ message: 'No conversations found', embedded: 0 });
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
       .select('id, conversation_id, content, role')
       .in('conversation_id', [...userConvIds])
       .order('created_at', { ascending: true })
-      .limit(500);
+      .limit(batchSize);
 
     if (conversationId) {
       query = supabase
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
         .select('id, conversation_id, content, role')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })
-        .limit(500);
+        .limit(batchSize);
     }
 
     const { data: messages, error: msgErr } = await query;
@@ -75,21 +76,34 @@ export async function POST(req: NextRequest) {
     }
 
     // Filter out messages that already have embeddings
-    const messageIds = messages.map(m => m.id);
+    const messageIds = messages.map((m) => m.id);
     const { data: existingEmbeddings } = await supabase
       .from('embeddings')
       .select('message_id')
       .in('message_id', messageIds);
 
-    const existingIds = new Set(existingEmbeddings?.map(e => e.message_id) || []);
-    const toEmbed = messages.filter(m => !existingIds.has(m.id));
+    const existingIds = new Set(existingEmbeddings?.map((e) => e.message_id) || []);
+    const toEmbed = messages.filter((m) => !existingIds.has(m.id));
 
     if (toEmbed.length === 0) {
-      return NextResponse.json({ message: 'All messages already embedded', embedded: 0 });
+      // Check if there are more messages without embeddings
+      const { count: totalWithoutEmbedding } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('conversation_id', [...userConvIds])
+        .not('id', 'in', `(${[...existingIds].join(',')})`);
+
+      return NextResponse.json({
+        message: totalWithoutEmbedding && totalWithoutEmbedding > 0
+          ? `All messages in this batch already embedded. ${totalWithoutEmbedding} more messages need embedding.`
+          : 'All messages already embedded',
+        embedded: 0,
+        remaining: totalWithoutEmbedding || 0,
+      });
     }
 
     // Generate embeddings in batch
-    const texts = toEmbed.map(m => `[${m.role}]: ${m.content.slice(0, 4000)}`);
+    const texts = toEmbed.map((m) => `[${m.role}]: ${m.content.slice(0, 4000)}`);
     const embeddings = await batchGenerateEmbeddings(texts);
 
     // Insert embeddings in batches of 50
@@ -97,7 +111,7 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < toEmbed.length; i += 50) {
       const batch = toEmbed.slice(i, i + 50);
       const batchEmbeddings = embeddings.slice(i, i + 50);
-      
+
       const rows = batch.map((msg, j) => ({
         message_id: msg.id,
         conversation_id: msg.conversation_id,
@@ -106,9 +120,7 @@ export async function POST(req: NextRequest) {
         embedding: JSON.stringify(batchEmbeddings[j]),
       }));
 
-      const { error: insertErr } = await supabase
-        .from('embeddings')
-        .insert(rows);
+      const { error: insertErr } = await supabase.from('embeddings').insert(rows);
 
       if (insertErr) {
         console.error('Embedding insert error:', insertErr.message);
@@ -122,8 +134,9 @@ export async function POST(req: NextRequest) {
       embedded: inserted,
       skipped: messages.length - toEmbed.length,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Embed error:', err);
-    return NextResponse.json({ error: err.message || 'Embedding failed' }, { status: 500 });
+    const errorMessage = err instanceof Error ? err.message : 'Embedding failed';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
