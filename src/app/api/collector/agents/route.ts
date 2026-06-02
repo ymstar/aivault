@@ -12,6 +12,9 @@ import { validateApiKey } from '@/lib/api-keys';
  * PATCH /api/collector/agents         — send heartbeat
  */
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRow = { [key: string]: any };
+
 async function authenticate(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get('authorization') || '';
   const apiKey = authHeader.replace(/^Bearer\s+/i, '').trim();
@@ -28,7 +31,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createServerClient();
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { data, error } = await db
       .from('collector_agents')
       .select('*')
       .eq('user_id', userId)
@@ -45,7 +50,7 @@ export async function GET(req: NextRequest) {
     }
 
     const now = Date.now();
-    const agents = (data || []).map((a) => ({
+    const agents: AnyRow[] = ((data || []) as AnyRow[]).map((a: AnyRow) => ({
       ...a,
       status: now - new Date(a.last_seen).getTime() > 5 * 60 * 1000 ? 'offline' : a.status,
     }));
@@ -75,7 +80,9 @@ export async function POST(req: NextRequest) {
     const supabase = createServerClient();
     const agentId = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { data, error } = await db
       .from('collector_agents')
       .insert({
         agent_id: agentId,
@@ -121,7 +128,9 @@ export async function PATCH(req: NextRequest) {
     }
 
     const supabase = createServerClient();
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { data, error } = await db
       .from('collector_agents')
       .update({ last_seen: new Date().toISOString(), status: 'online' })
       .eq('agent_id', agentId)

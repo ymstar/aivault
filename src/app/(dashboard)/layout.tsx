@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserButton, useUser } from '@clerk/nextjs';
 import {
-  LayoutDashboard, MessageSquare, Upload, Search, Settings, Shield, Menu, Network,
+  LayoutDashboard, MessageSquare, Upload, Search, Settings, Shield, Menu, Network, Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ const sidebarLinks = [
   { href: '/search', label: 'Search', icon: Search },
   { href: '/knowledge-graph', label: 'Knowledge Graph', icon: Network },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
+  { href: '/agents', label: 'Agents', icon: Bot },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
