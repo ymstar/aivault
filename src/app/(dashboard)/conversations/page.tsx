@@ -53,6 +53,7 @@ interface Conversation {
   message_count: number;
   created_at: string;
   tags?: string[];
+  summary?: string | null;
 }
 
 export default function ConversationsPage() {
@@ -508,6 +509,11 @@ export default function ConversationsPage() {
                     </div>
                   </div>
                   <h3 className="font-medium line-clamp-2 mb-2">{conv.title}</h3>
+                  {conv.summary && (
+                    <p className="text-[11px] text-zinc-500 line-clamp-2 mb-2">
+                      {conv.summary.replace(/\*\*.*?\*\*/g, '').replace(/[\n#]/g, ' ').slice(0, 120)}
+                    </p>
+                  )}
                   {(conv.tags || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-2">
                       {conv.tags!.slice(0, 3).map((tag) => (
@@ -555,6 +561,11 @@ export default function ConversationsPage() {
                   <span className="text-xl">{platformEmoji[conv.platform] || '💬'}</span>
                   <div>
                     <p className="font-medium">{conv.title}</p>
+                    {conv.summary && (
+                      <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                        {conv.summary.replace(/\*\*.*?\*\*/g, '').replace(/[\n#]/g, ' ').slice(0, 100)}
+                      </p>
+                    )}
                     <div className="mt-1 flex items-center gap-3 flex-wrap">
                       <Badge variant="outline" className={platformColors[conv.platform] || ''}>
                         {conv.platform}
