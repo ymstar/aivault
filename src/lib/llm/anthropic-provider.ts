@@ -9,8 +9,10 @@ export class AnthropicProvider implements LLMProvider {
 
   private getBaseUrl(): string {
     let url = this.config.baseUrl.replace(/\/+$/, '');
-    // Don't auto-add /v1 — let user specify the full base URL
-    // Many proxies have different path structures
+    // Add /v1 if not already present in the path
+    if (!url.includes('/v1') && !url.endsWith('/v1')) {
+      url = url + '/v1';
+    }
     return url;
   }
 
@@ -27,7 +29,6 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   buildPayload(messages: ChatMessage[], systemPrompt: string, maxTokens = 4096): object {
-    // Anthropic: system is top-level, not in messages array
     const apiMessages = messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role, content: m.content }));
