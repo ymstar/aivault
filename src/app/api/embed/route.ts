@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createServerClient } from '@/lib/supabase';
-import { generateEmbedding, batchGenerateEmbeddings } from '@/lib/embeddings';
+import { batchGenerateEmbeddings } from '@/lib/embeddings';
 
 /**
  * POST /api/embed — Generate embeddings for conversation messages.
@@ -32,29 +32,36 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Fetch user's conversation IDs first (authorization boundary)
+    // Fetch user's conversation IDs (authorization boundary)
     const { data: userConvs } = await supabase
       .from('conversations')
       .select('id')
       .eq('user_id', user.id);
-    const userConvIds = new Set(userConvs?.map((c) => c.id) || []);
+    const userConvIds = userConvs?.map((c) => c.id) || [];
 
-    if (userConvIds.size === 0) {
+    if (userConvIds.length === 0) {
       return NextResponse.json({ message: 'No conversations found', embedded: 0 });
     }
 
-    // If specific conversation requested, verify ownership
-    if (conversationId && !userConvIds.has(conversationId)) {
+    if (conversationId && !userConvIds.includes(conversationId)) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
-    // Fetch messages to embed (scoped to user's conversations)
+    // Get IDs of messages that ALREADY have embeddings
+    const { data: existingEmbeddings } = await supabase
+      .from('embeddings')
+      .select('message_id');
+    const existingMsgIds = new Set(existingEmbeddings?.map((e) => e.message_id) || []);
+
+    // Fetch messages, excluding those that already have embeddings
+    // We fetch more than batchSize to account for already-embedded ones
+    const fetchLimit = batchSize * 3;
     let query = supabase
       .from('messages')
       .select('id, conversation_id, content, role')
-      .in('conversation_id', [...userConvIds])
+      .in('conversation_id', userConvIds)
       .order('created_at', { ascending: true })
-      .limit(batchSize);
+      .limit(fetchLimit);
 
     if (conversationId) {
       query = supabase
@@ -62,7 +69,7 @@ export async function POST(req: NextRequest) {
         .select('id, conversation_id, content, role')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })
-        .limit(batchSize);
+        .limit(fetchLimit);
     }
 
     const { data: messages, error: msgErr } = await query;
@@ -72,33 +79,30 @@ export async function POST(req: NextRequest) {
     }
 
     if (!messages?.length) {
-      return NextResponse.json({ message: 'No messages to embed', embedded: 0 });
+      return NextResponse.json({ message: 'No messages found', embedded: 0 });
     }
 
-    // Filter out messages that already have embeddings
-    const messageIds = messages.map((m) => m.id);
-    const { data: existingEmbeddings } = await supabase
-      .from('embeddings')
-      .select('message_id')
-      .in('message_id', messageIds);
-
-    const existingIds = new Set(existingEmbeddings?.map((e) => e.message_id) || []);
-    const toEmbed = messages.filter((m) => !existingIds.has(m.id));
+    // Filter to only unembedded messages, up to batchSize
+    const toEmbed = messages
+      .filter((m) => !existingMsgIds.has(m.id))
+      .slice(0, batchSize);
 
     if (toEmbed.length === 0) {
-      // Check if there are more messages without embeddings
-      const { count: totalWithoutEmbedding } = await supabase
+      // Check total remaining without embeddings
+      const totalEmbedded = existingMsgIds.size;
+      const { count: totalMessages } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
-        .in('conversation_id', [...userConvIds])
-        .not('id', 'in', `(${[...existingIds].join(',')})`);
+        .in('conversation_id', userConvIds);
+
+      const remaining = (totalMessages || 0) - totalEmbedded;
 
       return NextResponse.json({
-        message: totalWithoutEmbedding && totalWithoutEmbedding > 0
-          ? `All messages in this batch already embedded. ${totalWithoutEmbedding} more messages need embedding.`
+        message: remaining > 0
+          ? `Fetched messages already embedded. ${remaining} more messages in other conversations need embedding. Run again to continue.`
           : 'All messages already embedded',
         embedded: 0,
-        remaining: totalWithoutEmbedding || 0,
+        remaining: Math.max(0, remaining),
       });
     }
 
@@ -129,10 +133,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Calculate remaining
+    const totalAfter = existingMsgIds.size + inserted;
+    const { count: totalMessages } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .in('conversation_id', userConvIds);
+    const remaining = Math.max(0, (totalMessages || 0) - totalAfter);
+
     return NextResponse.json({
       message: `Embedded ${inserted} messages`,
       embedded: inserted,
-      skipped: messages.length - toEmbed.length,
+      remaining,
     });
   } catch (err: unknown) {
     console.error('Embed error:', err);
