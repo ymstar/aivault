@@ -2,21 +2,42 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageSquare, MessageCircle, Link2, Crown, Upload, Loader2, CheckCircle2, Search, Sparkles } from 'lucide-react';
+import {
+  MessageSquare, MessageCircle, Link2, Crown, Upload, Loader2,
+  CheckCircle2, Search, Sparkles,
+} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/empty-state';
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
+  PieChart, Pie, Cell,
+} from 'recharts';
 
 const platformEmoji: Record<string, string> = {
-  CHATGPT: '🤖', CLAUDE: '🧠', GEMINI: '✨',
+  CHATGPT: '🤖', CLAUDE: '🧠', GEMINI: '✨', CODEX: '🔧',
+  CURSOR: '🖱️', OPENCODE: '📖', HERMES: '🪽',
 };
 
 const platformColors: Record<string, string> = {
   CHATGPT: 'bg-green-500/10 text-green-400 border-green-500/20',
   CLAUDE: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   GEMINI: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  CODEX: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+  CURSOR: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  OPENCODE: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  HERMES: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
 };
+
+const PLATFORM_CHART_COLORS: Record<string, string> = {
+  CHATGPT: '#22c55e',
+  CLAUDE: '#f97316',
+  GEMINI: '#4285F4',
+  OTHER: '#a3a3a3',
+};
+
+const PIE_COLORS = ['#22c55e', '#f97316', '#4285F4', '#a3a3a3', '#e879f9', '#06b6d4'];
 
 interface Stats {
   totalConversations: number;
@@ -31,6 +52,18 @@ interface Conversation {
   platform: string;
   message_count: number;
   created_at: string;
+}
+
+interface DailyEntry {
+  date: string;
+  imports: number;
+}
+
+interface ActivityData {
+  daily: DailyEntry[];
+  platforms: Record<string, number>;
+  range: string;
+  days: number;
 }
 
 function OnboardingChecklist({
@@ -115,6 +148,8 @@ function OnboardingChecklist({
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recent, setRecent] = useState<Conversation[]>([]);
+  const [activity, setActivity] = useState<ActivityData | null>(null);
+  const [activityRange, setActivityRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [loading, setLoading] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
   const [hasChatted, setHasChatted] = useState(false);
@@ -140,6 +175,14 @@ export default function DashboardPage() {
     load();
   }, []);
 
+  // Load activity data
+  useEffect(() => {
+    fetch(`/api/stats/activity?range=${activityRange}`)
+      .then((r) => r.json())
+      .then((d) => setActivity(d))
+      .catch(() => {});
+  }, [activityRange]);
+
   useEffect(() => {
     try {
       setHasSearched(localStorage.getItem('aivault-has-searched') === '1');
@@ -164,6 +207,11 @@ export default function DashboardPage() {
     { label: 'Platforms Connected', value: stats?.platforms?.length || 0, icon: Link2 },
     { label: 'Plan', value: stats?.plan || 'FREE', icon: Crown },
   ];
+
+  // Prepare pie chart data
+  const pieData = activity?.platforms
+    ? Object.entries(activity.platforms).map(([name, value]) => ({ name, value }))
+    : [];
 
   return (
     <div className="space-y-8">
@@ -193,6 +241,130 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Activity charts */}
+      {(stats?.totalConversations ?? 0) > 0 && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Import trend chart */}
+          <Card className="border-zinc-800 bg-zinc-900/50 lg:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-base">Import Trend</CardTitle>
+              <div className="flex gap-1">
+                {(['7d', '30d', '90d'] as const).map((r) => (
+                  <Button
+                    key={r}
+                    variant={activityRange === r ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setActivityRange(r)}
+                    className="h-7 text-xs px-2"
+                  >
+                    {r}
+                  </Button>
+                ))}
+              </div>
+            </CardHeader>
+            <CardContent className="pb-4">
+              {activity?.daily && activity.daily.length > 0 ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={activity.daily}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: '#71717a', fontSize: 11 }}
+                      tickFormatter={(v: string) => v.slice(5)}
+                      axisLine={{ stroke: '#27272a' }}
+                    />
+                    <YAxis
+                      tick={{ fill: '#71717a', fontSize: 11 }}
+                      axisLine={{ stroke: '#27272a' }}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#18181b',
+                        border: '1px solid #3f3f46',
+                        borderRadius: 8,
+                        color: '#e4e4e7',
+                        fontSize: 12,
+                      }}
+                      labelStyle={{ color: '#a1a1aa' }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="imports"
+                      stroke="#6366f1"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#6366f1' }}
+                      activeDot={{ r: 5 }}
+                      name="Imports"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[220px] text-zinc-600 text-sm">
+                  No activity data
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Platform distribution chart */}
+          <Card className="border-zinc-800 bg-zinc-900/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Platform Distribution</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4">
+              {pieData.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {pieData.map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          background: '#18181b',
+                          border: '1px solid #3f3f46',
+                          borderRadius: 8,
+                          color: '#e4e4e7',
+                          fontSize: 12,
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap gap-2 justify-center mt-2">
+                    {pieData.map((entry, i) => (
+                      <div key={entry.name} className="flex items-center gap-1.5 text-xs text-zinc-400">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                        />
+                        <span>{entry.name}</span>
+                        <span className="text-zinc-600">({entry.value})</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-[220px] text-zinc-600 text-sm">
+                  No platform data
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Recent Conversations */}
       <Card className="border-zinc-800 bg-zinc-900/50">

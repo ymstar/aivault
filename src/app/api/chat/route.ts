@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase';
 import { decryptApiKey } from '@/lib/crypto';
 import { createProvider, streamCompletion } from '@/lib/llm';
 import type { ChatMessage } from '@/lib/llm';
-import { retrieveRAGContext } from '@/lib/rag';
+import { retrieveRAGContext, type RAGSource } from '@/lib/rag';
 
 export async function POST(req: Request) {
   const userId = await getDbUserId();
@@ -52,7 +52,6 @@ export async function POST(req: Request) {
   // Load LLM config
   let configId: string | null = session.provider_id ?? null;
   if (!configId) {
-    // Try to get default config first
     const { data: defaultConfig } = await supabase
       .from('user_llm_configs')
       .select('id')
@@ -63,7 +62,6 @@ export async function POST(req: Request) {
     if (defaultConfig) {
       configId = defaultConfig.id;
     } else {
-      // Fall back to first available config
       const { data: firstConfig } = await supabase
         .from('user_llm_configs')
         .select('id')
@@ -126,11 +124,14 @@ export async function POST(req: Request) {
   // Build system prompt with RAG context
   let systemPrompt = 'You are AIVault AI assistant. You help users understand and explore their AI conversation history. Answer questions clearly and concisely.';
 
+  let ragSources: RAGSource[] = [];
+
   if (session.rag_enabled) {
-    const ragContext = await retrieveRAGContext(userId, message.trim());
-    if (ragContext) {
-      systemPrompt += `\n\nThe following is relevant context from the user's imported AI conversations:\n\n${ragContext}`;
+    const ragResult = await retrieveRAGContext(userId, message.trim());
+    if (ragResult.context) {
+      systemPrompt += `\n\nThe following is relevant context from the user's imported AI conversations:\n\n${ragResult.context}`;
     }
+    ragSources = ragResult.sources;
   }
 
   // Create provider and stream
@@ -175,6 +176,12 @@ export async function POST(req: Request) {
               .from('chat_sessions')
               .update({ title })
               .eq('id', sessionId);
+          }
+
+          // Send sources before [DONE] if available
+          if (ragSources.length > 0) {
+            const sourcesPayload = JSON.stringify({ type: 'sources', sources: ragSources });
+            controller.enqueue(encoder.encode(`data: ${sourcesPayload}\n\n`));
           }
 
           const donePayload = JSON.stringify({ type: 'done', messageId: savedMsg?.id });

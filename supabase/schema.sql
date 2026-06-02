@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS platform_connections (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  platform TEXT NOT NULL CHECK (platform IN ('CHATGPT', 'CLAUDE', 'GEMINI', 'OTHER')),
+  platform TEXT NOT NULL CHECK (platform IN ('CHATGPT', 'CLAUDE', 'GEMINI', 'CODEX', 'CURSOR', 'OPENCODE', 'HERMES', 'OTHER')),
   access_token TEXT,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DISCONNECTED', 'ERROR')),
   last_synced_at TIMESTAMPTZ,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS platform_connections (
 CREATE TABLE IF NOT EXISTS conversations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  platform TEXT NOT NULL CHECK (platform IN ('CHATGPT', 'CLAUDE', 'GEMINI', 'OTHER')),
+  platform TEXT NOT NULL CHECK (platform IN ('CHATGPT', 'CLAUDE', 'GEMINI', 'CODEX', 'CURSOR', 'OPENCODE', 'HERMES', 'OTHER')),
   title TEXT NOT NULL,
   summary TEXT,
   tags TEXT[] DEFAULT '{}',

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing platform' }, { status: 400 });
     }
 
-    const validPlatforms = ['chatgpt', 'claude', 'claude-code', 'gemini'];
+    const validPlatforms = ['chatgpt', 'claude', 'claude-code', 'gemini', 'codex', 'cursor', 'opencode', 'hermes'];
     if (!validPlatforms.includes(platform)) {
       return NextResponse.json(
         { error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}` },
@@ -36,17 +36,31 @@ export async function POST(request: NextRequest) {
     // Determine how to parse based on file extension and platform
     let rawData: unknown;
     const isTextFile = filename.endsWith('.txt') || filename.endsWith('.md');
+    const isJSONLFile = filename.endsWith('.jsonl');
     
     if (platform === 'claude-code' || (platform === 'claude' && isTextFile)) {
       // Claude Code exports are txt/md files - pass as string
       rawData = text;
+    } else if (platform === 'codex' || platform === 'hermes' || isJSONLFile) {
+      // Codex and Hermes use JSONL format (one JSON object per line)
+      // Also handle as JSON if the file is not actually JSONL
+      if (isJSONLFile || (text.includes('\n') && !text.trim().startsWith('{') && !text.trim().startsWith('['))) {
+        rawData = text;
+      } else {
+        try {
+          rawData = JSON.parse(text);
+        } catch {
+          // Treat as JSONL if JSON parse fails
+          rawData = text;
+        }
+      }
     } else {
-      // JSON files for ChatGPT and Claude web exports
+      // JSON files for ChatGPT, Claude web, Cursor, OpenCode exports
       try {
         rawData = JSON.parse(text);
       } catch {
         return NextResponse.json({ 
-          error: 'Invalid JSON file. For Claude Code terminal exports, please select "Claude Code" as the platform.' 
+          error: 'Invalid JSON file. For terminal/CLI exports, please select the correct platform (Claude Code, Codex, Hermes).' 
         }, { status: 400 });
       }
     }

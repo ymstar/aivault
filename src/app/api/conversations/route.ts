@@ -31,6 +31,14 @@ export async function GET(request: NextRequest) {
     if (platform) {
       dbQuery = dbQuery.eq('platform', platform as Database['public']['Enums']['Platform']);
     }
+    const tags = sp.get('tags');
+    if (tags) {
+      const tagList = tags.split(',').map((t) => t.trim()).filter(Boolean);
+      if (tagList.length > 0) {
+        dbQuery = dbQuery.overlaps('tags', tagList);
+      }
+    }
+
     if (query) {
       // Search in title OR message content
       const escaped = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');

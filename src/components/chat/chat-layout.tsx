@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Settings, Download, Plus, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { MessageList } from './message-list';
+import { MessageList, type RAGSource } from './message-list';
 import { MessageInput } from './message-input';
 import { LLMConfigDialog } from './llm-config-dialog';
 
@@ -22,6 +22,7 @@ interface Message {
   id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  sources?: RAGSource[];
 }
 
 export function ChatLayout() {
@@ -179,6 +180,15 @@ export function ChatLayout() {
                 const last = updated[updated.length - 1];
                 if (last.role === 'assistant') {
                   updated[updated.length - 1] = { ...last, content: last.content + data.content };
+                }
+                return updated;
+              });
+            } else if (data.type === 'sources' && data.sources) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last.role === 'assistant') {
+                  updated[updated.length - 1] = { ...last, sources: data.sources };
                 }
                 return updated;
               });
