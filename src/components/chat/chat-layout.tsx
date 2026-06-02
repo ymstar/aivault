@@ -37,7 +37,6 @@ export function ChatLayout() {
   const [hasConfig, setHasConfig] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
-  const streamingRef = useRef(false);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -64,13 +63,11 @@ export function ChatLayout() {
     } catch { /* ignore */ }
   }, []);
 
-  // Load sessions and configs on mount
   useEffect(() => {
     fetchSessions();
     fetchConfigs();
   }, [fetchSessions, fetchConfigs]);
 
-  // Load session when activeSessionId changes
   useEffect(() => {
     if (activeSessionId) {
       fetchSession(activeSessionId);
@@ -121,110 +118,54 @@ export function ChatLayout() {
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading || !activeSessionId || streamingRef.current) return;
+    if (!text || loading || !activeSessionId) return;
 
     setInput('');
     setMessages((prev) => [...prev, { role: 'user', content: text }]);
     setLoading(true);
-    streamingRef.current = true;
-
-    const controller = new AbortController();
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, sessionId: activeSessionId }),
-        signal: controller.signal,
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: 'Request failed' }));
-        setMessages((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last?.role === 'assistant') {
-            updated[updated.length - 1] = { ...last, content: `Error: ${errData.message || errData.error}` };
-          } else {
-            updated.push({ role: 'assistant', content: `Error: ${errData.message || errData.error}` });
-          }
-          return updated;
-        });
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `Error: ${errData.message || errData.error}` },
+        ]);
         return;
       }
 
-      // SSE stream
-      const reader = res.body?.getReader();
-      if (!reader) return;
+      const data = await res.json();
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: data.messageId,
+          role: 'assistant',
+          content: data.content,
+          sources: data.sources,
+        },
+      ]);
 
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === 'token' && data.content) {
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === 'assistant') {
-                  updated[updated.length - 1] = { ...last, content: last.content + data.content };
-                }
-                return updated;
-              });
-            } else if (data.type === 'sources' && data.sources) {
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === 'assistant') {
-                  updated[updated.length - 1] = { ...last, sources: data.sources };
-                }
-                return updated;
-              });
-            } else if (data.type === 'done') {
-              if (data.messageId) {
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last.role === 'assistant') {
-                    updated[updated.length - 1] = { ...last, id: data.messageId };
-                  }
-                  return updated;
-                });
-              }
-            }
-          } catch { /* ignore malformed lines */ }
-        }
-      }
-
+      // Refresh sessions to update title if changed
       fetchSessions();
+
+      try {
+        localStorage.setItem('aivault-has-chatted', '1');
+      } catch { /* ignore */ }
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
       console.error('Chat error:', err);
-      setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === 'assistant') {
-          updated[updated.length - 1] = { ...last, content: 'Error: Connection failed.' };
-        } else {
-          updated.push({ role: 'assistant', content: 'Error: Connection failed.' });
-        }
-        return updated;
-      });
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: 'Error: Connection failed.' },
+      ]);
     } finally {
       setLoading(false);
-      streamingRef.current = false;
     }
   }, [input, loading, activeSessionId, fetchSessions]);
 

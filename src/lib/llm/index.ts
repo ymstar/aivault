@@ -11,6 +11,64 @@ export function createProvider(config: LLMConfig): LLMProvider {
   return new OpenAIProvider(config);
 }
 
+/**
+ * Non-streaming completion - fallback when streaming fails
+ */
+export async function completion(
+  provider: LLMProvider,
+  messages: ChatMessage[],
+  systemPrompt: string,
+  maxTokens?: number,
+): Promise<string> {
+  const payload = provider.buildPayload(messages, systemPrompt, maxTokens);
+  // Disable streaming for non-streaming mode
+  const nonStreamPayload = { ...payload, stream: false };
+
+  const endpoint = provider.getEndpoint();
+  console.log('[LLM] Non-streaming request to:', endpoint);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 55000);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: provider.getHeaders(),
+      body: JSON.stringify(nonStreamPayload),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('LLM request timed out');
+    }
+    throw err;
+  }
+
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`LLM API error (${response.status}): ${errorText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+
+  // Anthropic format
+  if (data.content) {
+    const textBlocks = data.content.filter((b: { type: string }) => b.type === 'text');
+    return textBlocks.map((b: { text: string }) => b.text).join('');
+  }
+
+  // OpenAI format
+  if (data.choices?.[0]?.message?.content) {
+    return data.choices[0].message.content;
+  }
+
+  throw new Error('Unexpected response format');
+}
+
 export async function streamCompletion(
   provider: LLMProvider,
   messages: ChatMessage[],
@@ -18,12 +76,10 @@ export async function streamCompletion(
   maxTokens?: number,
 ): Promise<ReadableStream<string>> {
   const payload = provider.buildPayload(messages, systemPrompt, maxTokens);
-  const payloadStr = JSON.stringify(payload);
-  console.log('[LLM] Payload size:', payloadStr.length, 'bytes');
   const endpoint = provider.getEndpoint();
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  const timeoutId = setTimeout(() => controller.abort(), 55000);
 
   let response: Response;
   try {
@@ -73,10 +129,10 @@ export async function streamCompletion(
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        // Skip comment lines (e.g., ": PROCESSING")
+        // Skip comment lines
         if (trimmed.startsWith(':')) continue;
 
-        // Skip event lines (they indicate the type of the next data line)
+        // Skip event lines
         if (trimmed.startsWith('event:')) continue;
 
         // Handle data lines

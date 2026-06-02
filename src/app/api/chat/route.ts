@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbUserId } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase';
 import { decryptApiKey } from '@/lib/crypto';
-import { createProvider, streamCompletion } from '@/lib/llm';
+import { createProvider, completion } from '@/lib/llm';
 import type { ChatMessage } from '@/lib/llm';
 import { retrieveRAGContext, type RAGSource } from '@/lib/rag';
 
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
     ragSources = ragResult.sources;
   }
 
-  // Create provider and stream
+  // Use non-streaming mode for reliability
   try {
     const apiKey = decryptApiKey(llmConfig.api_key_encrypted, llmConfig.api_key_iv, llmConfig.api_key_tag);
     const provider = createProvider({
@@ -144,75 +144,35 @@ export async function POST(req: Request) {
       model: session.model_override || llmConfig.model,
     });
 
-    console.log('[Chat] Provider:', llmConfig.provider_type, 'Endpoint:', provider.getEndpoint(), 'Model:', llmConfig.model);
+    console.log('[Chat] Using non-streaming mode');
+    const assistantContent = await completion(provider, messages, systemPrompt);
 
-    const tokenStream = await streamCompletion(provider, messages, systemPrompt);
-    const reader = tokenStream.getReader();
-    const encoder = new TextEncoder();
-    let assistantContent = '';
-    let chunkCount = 0;
+    // Save assistant message
+    const { data: savedMsg, error: saveErr } = await supabase
+      .from('chat_messages')
+      .insert({
+        session_id: sessionId,
+        role: 'assistant',
+        content: assistantContent,
+        metadata: { model: session.model_override || llmConfig.model, provider: llmConfig.label },
+      })
+      .select('id')
+      .single();
 
-    const stream = new ReadableStream({
-      async pull(controller) {
-        const { done, value } = await reader.read();
-        if (done) {
-          console.log('[Chat] Stream done. Total chunks:', chunkCount, 'Content length:', assistantContent.length);
+    if (saveErr) {
+      console.error('Failed to save assistant message:', saveErr);
+    }
 
-          // Save assistant message after stream completes
-          const { data: savedMsg, error: saveErr } = await supabase
-            .from('chat_messages')
-            .insert({
-              session_id: sessionId,
-              role: 'assistant',
-              content: assistantContent,
-              metadata: { model: session.model_override || llmConfig.model, provider: llmConfig.label },
-            })
-            .select('id')
-            .single();
+    // Auto-title
+    if (session.title === 'New Chat') {
+      const title = message.trim().slice(0, 50) + (message.trim().length > 50 ? '...' : '');
+      await supabase.from('chat_sessions').update({ title }).eq('id', sessionId);
+    }
 
-          if (saveErr) {
-            console.error('Failed to save assistant message:', saveErr);
-          }
-
-          // Auto-title: if title is still "New Chat", use first ~50 chars of user message
-          if (session.title === 'New Chat') {
-            const title = message.trim().slice(0, 50) + (message.trim().length > 50 ? '...' : '');
-            await supabase
-              .from('chat_sessions')
-              .update({ title })
-              .eq('id', sessionId);
-          }
-
-          // Send sources before [DONE] if available
-          if (ragSources.length > 0) {
-            const sourcesPayload = JSON.stringify({ type: 'sources', sources: ragSources });
-            controller.enqueue(encoder.encode(`data: ${sourcesPayload}\n\n`));
-          }
-
-          const donePayload = JSON.stringify({ type: 'done', messageId: savedMsg?.id });
-          controller.enqueue(encoder.encode(`data: ${donePayload}\n\n`));
-          controller.close();
-          return;
-        }
-
-        chunkCount++;
-        assistantContent += value;
-
-        if (chunkCount <= 3) {
-          console.log(`[Chat] Chunk ${chunkCount}:`, value.slice(0, 100));
-        }
-
-        const tokenPayload = JSON.stringify({ type: 'token', content: value });
-        controller.enqueue(encoder.encode(`data: ${tokenPayload}\n\n`));
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
+    return NextResponse.json({
+      content: assistantContent,
+      messageId: savedMsg?.id,
+      sources: ragSources.length > 0 ? ragSources : undefined,
     });
   } catch (err) {
     console.error('[Chat] Error:', err);
