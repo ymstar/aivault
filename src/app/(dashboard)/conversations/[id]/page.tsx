@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, User, Bot, Search, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { ArrowLeft, Loader2, User, Bot, Search, ChevronUp, ChevronDown, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,7 @@ interface ConversationDetail {
   platform: string;
   created_at: string;
   tags: string[];
+  summary: string | null;
   messages: Message[];
 }
 
@@ -164,6 +165,7 @@ export default function ConversationDetailPage() {
   const router = useRouter();
   const [conv, setConv] = useState<ConversationDetail | null>(null);
   const [allTags, setAllTags] = useState<string[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Search state
@@ -238,6 +240,19 @@ export default function ConversationDetailPage() {
     } catch { /* ignore */ }
   }, [conv]);
 
+  const handleGenerateSummary = useCallback(async () => {
+    if (!conv) return;
+    setSummaryLoading(true);
+    try {
+      const res = await fetch(`/api/conversations/${conv.id}/summary`, { method: 'POST' });
+      const data = await res.json();
+      if (data.summary) {
+        setConv((prev) => prev ? { ...prev, summary: data.summary } : prev);
+      }
+    } catch { /* ignore */ }
+    setSummaryLoading(false);
+  }, [conv]);
+
   // Keyboard shortcut: Cmd/Ctrl+F to open search, Escape to close
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -300,6 +315,27 @@ export default function ConversationDetailPage() {
         <div className="mb-2">
           <TagEditor tags={conv.tags || []} allTags={allTags} onChange={handleTagsChange} />
         </div>
+        {/* Summary */}
+        {conv.summary ? (
+          <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+            <div className="prose prose-invert prose-sm max-w-none text-zinc-400"
+              dangerouslySetInnerHTML={{ __html: conv.summary.replace(/\*\*(.*?)\*\*/g, '<strong class="text-zinc-200">$1</strong>').replace(/\n/g, '<br/>') }}
+            />
+          </div>
+        ) : (
+          <button
+            onClick={handleGenerateSummary}
+            disabled={summaryLoading}
+            className="mb-3 flex items-center gap-1.5 text-xs text-zinc-600 hover:text-indigo-400 transition-colors disabled:opacity-50"
+          >
+            {summaryLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3" />
+            )}
+            {summaryLoading ? 'Generating summary...' : 'Generate AI Summary'}
+          </button>
+        )}
         <p className="text-sm text-zinc-500">
           {conv.messages?.length || 0} messages · {new Date(conv.created_at).toLocaleString()}
         </p>

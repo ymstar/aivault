@@ -161,6 +161,17 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({}),
     }).catch(err => console.warn('Auto-embed failed:', err));
 
+    // Auto-trigger summary generation for conversations without summaries (async)
+    const summarizeUrl = new URL('/api/conversations/summarize', request.url).toString();
+    fetch(summarizeUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: request.headers.get('cookie') || '',
+      },
+      body: JSON.stringify({}),
+    }).catch(err => console.warn('Auto-summarize failed:', err));
+
     return NextResponse.json({
       success: true,
       conversations: conversations.length - duplicatesSkipped,
