@@ -4,16 +4,21 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, FileJson, FileText, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-type Platform = 'chatgpt' | 'claude' | 'claude-code';
+type Platform = 'chatgpt' | 'claude' | 'claude-code' | 'gemini' | 'codex' | 'cursor' | 'opencode' | 'hermes';
 type Status = 'idle' | 'uploading' | 'success' | 'error';
 
 const platforms: { id: Platform; name: string; icon: string; desc: string; accept: string }[] = [
-  { id: 'chatgpt', name: 'ChatGPT', icon: '🤖', desc: 'Export from Settings → Data → Export', accept: '.json' },
-  { id: 'claude', name: 'Claude Web', icon: '🧠', desc: 'Export from Settings → Data → Export', accept: '.json' },
+  { id: 'chatgpt', name: 'ChatGPT', icon: '🤖', desc: 'Settings → Data → Export', accept: '.json' },
+  { id: 'claude', name: 'Claude Web', icon: '🧠', desc: 'Settings → Data → Export', accept: '.json' },
   { id: 'claude-code', name: 'Claude Code', icon: '⚡', desc: 'Terminal: use /export command', accept: '.txt,.md' },
+  { id: 'gemini', name: 'Gemini', icon: '✨', desc: 'Google Takeout → Gemini', accept: '.json' },
+  { id: 'codex', name: 'Codex CLI', icon: '🔧', desc: '~/.codex/sessions/ JSONL files', accept: '.jsonl' },
+  { id: 'cursor', name: 'Cursor', icon: '🖱️', desc: 'Export from Cursor settings', accept: '.json' },
+  { id: 'opencode', name: 'OpenCode', icon: '📖', desc: 'Export from OpenCode sessions', accept: '.json' },
+  { id: 'hermes', name: 'Hermes Agent', icon: '🪽', desc: 'Agent JSONL or JSON export', accept: '.json,.jsonl' },
 ];
 
 export default function ImportPage() {
@@ -24,7 +29,7 @@ export default function ImportPage() {
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
 
-  const selectedPlatform = platforms.find(p => p.id === platform)!;
+  const selectedPlatform = platforms.find((p) => p.id === platform)!;
 
   const handleUpload = useCallback(async (file: File) => {
     setStatus('uploading');
@@ -59,20 +64,26 @@ export default function ImportPage() {
     e.target.value = '';
   }, [handleUpload]);
 
+  const acceptLabel = selectedPlatform.accept.includes('jsonl')
+    ? '.jsonl'
+    : selectedPlatform.accept.includes('txt')
+    ? '.txt .md'
+    : '.json';
+
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
+    <div className="mx-auto max-w-3xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Import Conversations</h1>
         <p className="text-zinc-400">Upload your AI conversation exports to AIVault</p>
       </div>
 
       {/* Platform selector */}
-      <div className="grid grid-cols-3 gap-4">
-        {platforms.map(p => (
+      <div className="grid grid-cols-4 gap-3">
+        {platforms.map((p) => (
           <button
             key={p.id}
             onClick={() => setPlatform(p.id)}
-            className={`flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-all ${
+            className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition-all ${
               platform === p.id
                 ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
                 : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-700'
@@ -80,8 +91,8 @@ export default function ImportPage() {
           >
             <span className="text-2xl">{p.icon}</span>
             <div>
-              <p className="font-medium text-sm">{p.name}</p>
-              <p className="text-xs text-zinc-500">{p.desc}</p>
+              <p className="font-medium text-xs">{p.name}</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">{p.desc}</p>
             </div>
           </button>
         ))}
@@ -105,13 +116,17 @@ export default function ImportPage() {
           <p className="text-sm text-zinc-500">or click to browse</p>
           <div className="mt-4 flex gap-2">
             <Badge variant="outline" className="border-zinc-700 text-zinc-400">
-              {platform === 'claude-code' ? (
+              {selectedPlatform.accept.includes('jsonl') ? (
                 <>
-                  <FileText className="mr-1 h-3 w-3" /> .txt .md
+                  <FileText className="mr-1 h-3 w-3" /> {acceptLabel}
+                </>
+              ) : selectedPlatform.accept.includes('txt') ? (
+                <>
+                  <FileText className="mr-1 h-3 w-3" /> {acceptLabel}
                 </>
               ) : (
                 <>
-                  <FileJson className="mr-1 h-3 w-3" /> .json
+                  <FileJson className="mr-1 h-3 w-3" /> {acceptLabel}
                 </>
               )}
             </Badge>

@@ -448,7 +448,7 @@ export type Database = {
     }
     Enums: {
       Plan: 'FREE' | 'STARTER' | 'PRO' | 'TEAM'
-      Platform: 'CHATGPT' | 'CLAUDE' | 'GEMINI' | 'OTHER'
+      Platform: 'CHATGPT' | 'CLAUDE' | 'GEMINI' | 'CODEX' | 'CURSOR' | 'OPENCODE' | 'HERMES' | 'OTHER'
       ConnectionStatus: 'ACTIVE' | 'DISCONNECTED' | 'ERROR'
       SubscriptionStatus: 'ACTIVE' | 'CANCELED' | 'PAST_DUE' | 'INCOMPLETE' | 'TRIALING' | 'UNPAID'
     }

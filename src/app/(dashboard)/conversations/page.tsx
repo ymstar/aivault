@@ -16,10 +16,15 @@ const platformColors: Record<string, string> = {
   CHATGPT: 'bg-green-500/10 text-green-400 border-green-500/20',
   CLAUDE: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   GEMINI: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  CODEX: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+  CURSOR: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  OPENCODE: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  HERMES: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
 };
 
 const platformEmoji: Record<string, string> = {
-  CHATGPT: '🤖', CLAUDE: '🧠', GEMINI: '✨',
+  CHATGPT: '🤖', CLAUDE: '🧠', GEMINI: '✨', CODEX: '🔧',
+  CURSOR: '🖱️', OPENCODE: '📖', HERMES: '🪽',
 };
 
 const TAG_COLORS = [
@@ -237,7 +242,7 @@ export default function ConversationsPage() {
     setShowExportMenu(false);
   }, []);
 
-  const platforms = ['', 'CHATGPT', 'CLAUDE', 'GEMINI'];
+  const platforms = ['', 'CHATGPT', 'CLAUDE', 'GEMINI', 'CODEX', 'CURSOR', 'OPENCODE', 'HERMES'];
 
   const selectedTagsSuggestions = useMemo(() => {
     if (!batchTagInput.trim()) return allTags.slice(0, 8);

@@ -11,6 +11,10 @@ export enum Platform {
   CHATGPT = "CHATGPT",
   CLAUDE = "CLAUDE",
   GEMINI = "GEMINI",
+  CODEX = "CODEX",
+  CURSOR = "CURSOR",
+  OPENCODE = "OPENCODE",
+  HERMES = "HERMES",
   OTHER = "OTHER",
 }
 
