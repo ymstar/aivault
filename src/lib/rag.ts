@@ -1,9 +1,30 @@
 import { createServerClient } from '@/lib/supabase';
 import { generateEmbedding, searchSimilar, isEmbeddingReady } from '@/lib/embeddings';
 
-export async function retrieveRAGContext(userId: string, query: string): Promise<string> {
+export interface RAGSource {
+  conversation_id: string;
+  conversation_title: string;
+  message_id: string;
+  similarity: number;
+  snippet: string;
+}
+
+interface SimilarResult {
+  conversation_id: string;
+  message_id: string;
+  content?: string;
+  similarity?: number;
+}
+
+export interface RAGResult {
+  context: string;
+  sources: RAGSource[];
+}
+
+export async function retrieveRAGContext(userId: string, query: string): Promise<RAGResult> {
   const supabase = createServerClient();
   let context = '';
+  const sources: RAGSource[] = [];
 
   try {
     // Strategy 1: Vector search
@@ -12,14 +33,14 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
       const embeddingReady = await isEmbeddingReady();
       if (embeddingReady) {
         const queryEmbedding = await generateEmbedding(query);
-        const similar = await searchSimilar(queryEmbedding, userId, 10);
+        const similar: SimilarResult[] = await searchSimilar(queryEmbedding, userId, 10);
 
         if (similar.length > 0) {
-          const convIds = [...new Set(similar.map((r: { conversation_id: string }) => r.conversation_id))] as string[];
+          const convIds = [...new Set(similar.map((r) => r.conversation_id))] as string[];
 
           const { data: messages } = await supabase
             .from('messages')
-            .select('role, content')
+            .select('id, conversation_id, role, content')
             .in('conversation_id', convIds)
             .order('created_at', { ascending: true })
             .limit(100);
@@ -27,6 +48,35 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
           if (messages?.length) {
             context = messages.map((m) => `[${m.role}]: ${m.content}`).join('\n');
             usedVectorSearch = true;
+
+            // Build sources from vector search results
+            const { data: convTitles } = await supabase
+              .from('conversations')
+              .select('id, title')
+              .in('id', convIds);
+
+            const titleMap = new Map<string, string>();
+            (convTitles || []).forEach((c) => titleMap.set(c.id, c.title));
+
+            // Deduplicate by conversation and take top 5
+            const seen = new Set<string>();
+            for (const result of similar) {
+              if (sources.length >= 5) break;
+              if (seen.has(result.conversation_id)) continue;
+              seen.add(result.conversation_id);
+
+              const matchedMsg = messages.find(
+                (m) => m.conversation_id === result.conversation_id
+              );
+
+              sources.push({
+                conversation_id: result.conversation_id,
+                conversation_title: titleMap.get(result.conversation_id) || 'Untitled',
+                message_id: result.message_id || matchedMsg?.id || '',
+                similarity: result.similarity ?? 0,
+                snippet: matchedMsg?.content?.slice(0, 200) || '',
+              });
+            }
           }
         }
       }
@@ -41,14 +91,14 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
         .split(/\s+/)
         .filter((w) => w.length > 2);
 
-      let convs: { id: string }[] | null = null;
+      let convs: { id: string; title: string }[] | null = null;
 
       if (keywords.length > 0) {
         const escapeLike = (s: string) => s.replace(/[%_]/g, '\\$&');
         const orFilters = keywords.map((k) => `title.ilike.%${escapeLike(k)}%`).join(',');
         const { data } = await supabase
           .from('conversations')
-          .select('id')
+          .select('id, title')
           .eq('user_id', userId)
           .or(orFilters)
           .order('created_at', { ascending: false })
@@ -60,7 +110,7 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
       if (!convs?.length) {
         const { data } = await supabase
           .from('conversations')
-          .select('id')
+          .select('id, title')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(5);
@@ -71,13 +121,32 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
         const convIds = convs.map((c) => c.id);
         const { data: messages } = await supabase
           .from('messages')
-          .select('role, content')
+          .select('id, conversation_id, role, content')
           .in('conversation_id', convIds)
           .order('created_at', { ascending: true })
           .limit(200);
 
         if (messages?.length) {
           context = messages.map((m) => `[${m.role}]: ${m.content}`).join('\n');
+
+          const titleMap = new Map<string, string>();
+          convs.forEach((c) => titleMap.set(c.id, c.title));
+
+          const seen = new Set<string>();
+          for (const conv of convs) {
+            if (sources.length >= 5) break;
+            if (seen.has(conv.id)) continue;
+            seen.add(conv.id);
+
+            const firstMsg = messages.find((m) => m.conversation_id === conv.id);
+            sources.push({
+              conversation_id: conv.id,
+              conversation_title: conv.title,
+              message_id: firstMsg?.id || '',
+              similarity: 0,
+              snippet: firstMsg?.content?.slice(0, 200) || '',
+            });
+          }
         }
       }
     }
@@ -91,5 +160,5 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
     context = context.slice(-MAX_CONTEXT_CHARS);
   }
 
-  return context;
+  return { context, sources };
 }
