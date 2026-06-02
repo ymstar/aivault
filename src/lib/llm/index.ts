@@ -18,6 +18,8 @@ export async function streamCompletion(
   maxTokens?: number,
 ): Promise<ReadableStream<string>> {
   const payload = provider.buildPayload(messages, systemPrompt, maxTokens);
+  const payloadStr = JSON.stringify(payload);
+  console.log('[LLM] Payload size:', payloadStr.length, 'bytes');
   const endpoint = provider.getEndpoint();
 
   const controller = new AbortController();

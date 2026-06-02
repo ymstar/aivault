@@ -155,7 +155,7 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
   }
 
   // Truncate to avoid exceeding LLM context window (~12K tokens)
-  const MAX_CONTEXT_CHARS = 50000;
+  const MAX_CONTEXT_CHARS = 15000;
   if (context.length > MAX_CONTEXT_CHARS) {
     context = context.slice(-MAX_CONTEXT_CHARS);
   }
