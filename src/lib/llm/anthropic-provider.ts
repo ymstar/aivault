@@ -9,7 +9,6 @@ export class AnthropicProvider implements LLMProvider {
 
   private getBaseUrl(): string {
     let url = this.config.baseUrl.replace(/\/+$/, '');
-    // Add /v1 if not already present in the path
     if (!url.includes('/v1') && !url.endsWith('/v1')) {
       url = url + '/v1';
     }
@@ -44,9 +43,27 @@ export class AnthropicProvider implements LLMProvider {
   parseStreamChunk(data: string): string | null {
     try {
       const parsed = JSON.parse(data);
+
+      // Standard Anthropic format
       if (parsed.type === 'content_block_delta') {
         return parsed.delta?.text ?? null;
       }
+
+      // Some proxies return OpenAI-compatible format
+      if (parsed.choices?.[0]?.delta?.content) {
+        return parsed.choices[0].delta.content;
+      }
+
+      // Some proxies return just { text: "..." }
+      if (typeof parsed.text === 'string') {
+        return parsed.text;
+      }
+
+      // Some proxies return { content: [{ text: "..." }] }
+      if (parsed.content?.[0]?.text) {
+        return parsed.content[0].text;
+      }
+
       return null;
     } catch {
       return null;
