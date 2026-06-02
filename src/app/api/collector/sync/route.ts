@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { validateApiKey } from '@/lib/api-keys';
+import { Platform } from '@/types';
 
 /**
- * POST /api/collector/sync — Sync a Claude Code session to AIVault.
+ * POST /api/collector/sync — Sync a conversation to AIVault.
  * Auth: API key in Authorization header (Bearer av_xxx).
- * Body: { sessionId, title, messages: [{role, content, timestamp?}], createdAt?, model? }
+ * Body: {
+ *   sessionId: string,       // unique session identifier
+ *   platform: string,        // CLAUDE | CODEX | CURSOR | OPENCODE | HERMES | etc.
+ *   title?: string,
+ *   messages: [{role, content, timestamp?}],
+ *   createdAt?: string,
+ *   model?: string
+ * }
  */
 export async function POST(req: NextRequest) {
-  // Authenticate via API key
   const authHeader = req.headers.get('authorization') || '';
   const apiKey = authHeader.replace(/^Bearer\s+/i, '').trim();
-  
+
   if (!apiKey || !apiKey.startsWith('av_')) {
     return NextResponse.json(
       { error: 'Missing or invalid API key. Use: Authorization: Bearer av_xxx' },
@@ -24,9 +31,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
   }
 
-  // Parse request body
   let body: {
     sessionId?: string;
+    platform?: string;
     title?: string;
     messages?: Array<{ role: string; content: string; timestamp?: string }>;
     createdAt?: string;
@@ -39,7 +46,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { sessionId, title, messages, createdAt, model } = body;
+  const { sessionId, platform = 'OTHER', title, messages, createdAt, model } = body;
 
   if (!sessionId || !messages?.length) {
     return NextResponse.json(
@@ -48,34 +55,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Validate platform
+  const validPlatforms = Object.values(Platform);
+  const normalizedPlatform = platform.toUpperCase();
+  const finalPlatform = validPlatforms.includes(normalizedPlatform as Platform)
+    ? (normalizedPlatform as Platform)
+    : Platform.OTHER;
+
   const supabase = createServerClient();
 
   try {
-    // Check if conversation already exists for this session
-    // We store sessionId in summary field for reliable matching
+    // Check if conversation already exists
     const { data: existing } = await supabase
       .from('conversations')
       .select('id, message_count')
       .eq('user_id', userId)
-      .eq('platform', 'CLAUDE')
       .eq('summary', `session:${sessionId}`)
       .limit(1)
       .single();
 
     if (existing) {
-      // Update: delete old messages, insert new
-      const { error: delErr } = await supabase
-        .from('messages')
-        .delete()
-        .eq('conversation_id', existing.id);
-
-      if (delErr) {
-        throw new Error(`Failed to clear old messages: ${delErr.message}`);
-      }
-
+      // Update existing conversation
+      await supabase.from('messages').delete().eq('conversation_id', existing.id);
       await supabase
         .from('conversations')
-        .update({ message_count: messages.length })
+        .update({
+          message_count: messages.length,
+          title: title || undefined,
+        })
         .eq('id', existing.id);
 
       await insertMessages(supabase, existing.id, messages);
@@ -92,8 +99,8 @@ export async function POST(req: NextRequest) {
       .from('conversations')
       .insert({
         user_id: userId,
-        platform: 'CLAUDE',
-        title: title || `Claude Code Session ${sessionId.slice(0, 8)}`,
+        platform: finalPlatform,
+        title: title || `${platform} Session ${sessionId.slice(0, 8)}`,
         summary: `session:${sessionId}`,
         message_count: messages.length,
         created_at: createdAt || new Date().toISOString(),
@@ -111,23 +118,34 @@ export async function POST(req: NextRequest) {
 
     await insertMessages(supabase, conv.id, messages);
 
+    // Auto-trigger embedding (async)
+    const embedUrl = new URL('/api/embed', req.url).toString();
+    fetch(embedUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: req.headers.get('cookie') || '',
+      },
+      body: JSON.stringify({ conversationId: conv.id }),
+    }).catch(() => {});
+
     return NextResponse.json({
       action: 'created',
       conversationId: conv.id,
       messageCount: messages.length,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Collector sync error:', err);
-    return NextResponse.json({ error: err.message || 'Sync failed' }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'Sync failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 async function insertMessages(
   supabase: ReturnType<typeof createServerClient>,
   conversationId: string,
-  messages: Array<{ role: string; content: string; timestamp?: string }>
+  messages: Array<{ role: string; content: string; timestamp?: string }>,
 ) {
-  // Insert in batches of 50
   for (let i = 0; i < messages.length; i += 50) {
     const batch = messages.slice(i, i + 50);
     const rows = batch.map((msg) => ({
@@ -139,7 +157,6 @@ async function insertMessages(
 
     const { error } = await supabase.from('messages').insert(rows);
     if (error) {
-      console.error('Message insert error:', error.message);
       throw new Error(`Failed to insert messages: ${error.message}`);
     }
   }
