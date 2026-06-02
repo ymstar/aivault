@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getDbUserId } from '@/lib/auth';
 import { parseExport } from '@/lib/parsers';
+import { createHash } from 'crypto';
 import type { ImportedConversation } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -70,8 +71,49 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient();
     let totalMessages = 0;
+    let duplicatesSkipped = 0;
+
+    // Pre-fetch existing conversation hashes for duplicate detection
+    const { data: existingConvs } = await supabase
+      .from('conversations')
+      .select('id, title, message_count')
+      .eq('user_id', userId);
+
+    // Build a set of existing signatures: "title|message_count|first_msg_hash"
+    const existingSignatures = new Set<string>();
+    if (existingConvs) {
+      for (const ec of existingConvs) {
+        // Fetch first user message for each existing conversation to build signature
+        const { data: firstMsg } = await supabase
+          .from('messages')
+          .select('content')
+          .eq('conversation_id', ec.id)
+          .eq('role', 'user')
+          .order('created_at', { ascending: true })
+          .limit(1);
+        if (firstMsg && firstMsg.length > 0) {
+          const hash = createHash('md5')
+            .update(firstMsg[0].content.slice(0, 500))
+            .digest('hex')
+            .slice(0, 16);
+          existingSignatures.add(`${ec.title}|${ec.message_count}|${hash}`);
+        }
+      }
+    }
 
     for (const conv of conversations) {
+      // Build signature for this import candidate
+      const firstUserMsg = conv.messages.find(m => m.role === 'user');
+      const importHash = firstUserMsg
+        ? createHash('md5').update(firstUserMsg.content.slice(0, 500)).digest('hex').slice(0, 16)
+        : '';
+      const signature = `${conv.title}|${conv.messages.length}|${importHash}`;
+
+      if (importHash && existingSignatures.has(signature)) {
+        duplicatesSkipped++;
+        continue;
+      }
+
       const { data: insertedConv, error: convError } = await supabase
         .from('conversations')
         .insert({
@@ -121,8 +163,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      conversations: conversations.length,
+      conversations: conversations.length - duplicatesSkipped,
       messages: totalMessages,
+      duplicatesSkipped,
       embeddingQueued: true,
     });
   } catch (error) {

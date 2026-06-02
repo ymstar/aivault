@@ -25,7 +25,7 @@ export default function ImportPage() {
   const router = useRouter();
   const [platform, setPlatform] = useState<Platform>('chatgpt');
   const [status, setStatus] = useState<Status>('idle');
-  const [result, setResult] = useState<{ conversations: number; messages: number } | null>(null);
+  const [result, setResult] = useState<{ conversations: number; messages: number; duplicatesSkipped?: number } | null>(null);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
 
@@ -43,7 +43,7 @@ export default function ImportPage() {
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || 'Import failed');
-      setResult({ conversations: data.conversations, messages: data.messages });
+      setResult({ conversations: data.conversations, messages: data.messages, duplicatesSkipped: data.duplicatesSkipped || 0 });
       setStatus('success');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Import failed');
@@ -166,6 +166,12 @@ export default function ImportPage() {
                 <p className="text-2xl font-bold">{result.messages}</p>
                 <p className="text-sm text-zinc-400">Messages</p>
               </div>
+              {(result.duplicatesSkipped ?? 0) > 0 && (
+                <div>
+                  <p className="text-2xl font-bold text-yellow-400">{result.duplicatesSkipped}</p>
+                  <p className="text-sm text-zinc-400">Duplicates skipped</p>
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => { setStatus('idle'); setResult(null); }}>
