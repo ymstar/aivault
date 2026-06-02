@@ -30,8 +30,10 @@ export default function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('aivault-recent-searches');
-    if (saved) setRecentSearches(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem('aivault-recent-searches');
+      if (saved) setRecentSearches(JSON.parse(saved));
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
@@ -58,11 +60,17 @@ export default function SearchPage() {
       }
       const data = await res.json();
       setResults(data.results || []);
-      localStorage.setItem('aivault-has-searched', '1');
-      // Save recent search
-      const updated = [q, ...recentSearches.filter(s => s !== q)].slice(0, 5);
-      setRecentSearches(updated);
-      localStorage.setItem('aivault-recent-searches', JSON.stringify(updated));
+      try {
+        localStorage.setItem('aivault-has-searched', '1');
+      } catch { /* ignore */ }
+      // Save recent search (use functional updater to avoid stale closure)
+      setRecentSearches(prev => {
+        const updated = [q, ...prev.filter(s => s !== q)].slice(0, 5);
+        try {
+          localStorage.setItem('aivault-recent-searches', JSON.stringify(updated));
+        } catch { /* ignore */ }
+        return updated;
+      });
     } catch { setResults([]); }
     setLoading(false);
   };

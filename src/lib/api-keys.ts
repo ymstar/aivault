@@ -48,7 +48,10 @@ export async function validateApiKey(rawKey: string): Promise<string | null> {
     .from('api_keys')
     .update({ last_used_at: new Date().toISOString() })
     .eq('id', data.id)
-    .then(() => {});
+    .then(
+      () => {},
+      (err) => console.warn('Failed to update last_used_at:', err)
+    );
   
   return data.user_id;
 }

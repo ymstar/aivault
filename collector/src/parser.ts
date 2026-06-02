@@ -22,7 +22,7 @@ export interface ParsedSession {
  */
 export async function parseSessionFile(filePath: string): Promise<ParsedSession | null> {
   const sessionId = path.basename(filePath, '.jsonl');
-  const projectPath = path.basename(path.dirname(path.dirname(filePath)));
+  const projectPath = path.basename(path.dirname(filePath));
   
   const messages: ParsedMessage[] = [];
   let title = '';

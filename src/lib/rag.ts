@@ -44,7 +44,8 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
       let convs: { id: string }[] | null = null;
 
       if (keywords.length > 0) {
-        const orFilters = keywords.map((k) => `title.ilike.%${k}%`).join(',');
+        const escapeLike = (s: string) => s.replace(/[%_]/g, '\\$&');
+        const orFilters = keywords.map((k) => `title.ilike.%${escapeLike(k)}%`).join(',');
         const { data } = await supabase
           .from('conversations')
           .select('id')
@@ -82,6 +83,12 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
     }
   } catch (err) {
     console.error('RAG context retrieval error:', err);
+  }
+
+  // Truncate to avoid exceeding LLM context window (~12K tokens)
+  const MAX_CONTEXT_CHARS = 50000;
+  if (context.length > MAX_CONTEXT_CHARS) {
+    context = context.slice(-MAX_CONTEXT_CHARS);
   }
 
   return context;

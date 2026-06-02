@@ -45,7 +45,7 @@ export interface PlatformConnection {
   id: string;
   userId: string;
   platform: Platform;
-  accessToken: string;
+  accessToken: string | null;
   status: ConnectionStatus;
   lastSyncAt: Date | null;
   createdAt: Date;
@@ -66,7 +66,7 @@ export interface Conversation {
 export interface Message {
   id: string;
   conversationId: string;
-  role: string;
+  role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: Date;
   tokenCount: number | null;
@@ -75,11 +75,11 @@ export interface Message {
 export interface Subscription {
   id: string;
   userId: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   status: SubscriptionStatus;
   plan: Plan;
-  currentPeriodEnd: Date;
+  currentPeriodEnd: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

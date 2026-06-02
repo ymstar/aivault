@@ -5,7 +5,7 @@ import { AnthropicProvider } from './anthropic-provider';
 export type { LLMConfig, ChatMessage, LLMProvider } from './types';
 
 export function createProvider(config: LLMConfig): LLMProvider {
-  if (config.providerType === 'anthropic' || config.baseUrl.includes('anthropic')) {
+  if (config.providerType === 'anthropic') {
     return new AnthropicProvider(config);
   }
   return new OpenAIProvider(config);
@@ -36,6 +36,7 @@ export async function streamCompletion(
 
   const decoder = new TextDecoder();
   const reader = body.getReader();
+  let buffer = '';
 
   return new ReadableStream<string>({
     async pull(controller) {
@@ -45,8 +46,10 @@ export async function streamCompletion(
         return;
       }
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      // Keep the last incomplete line in the buffer
+      buffer = lines.pop() || '';
 
       for (const line of lines) {
         const trimmed = line.trim();

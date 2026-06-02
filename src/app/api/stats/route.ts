@@ -37,6 +37,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Stats error:", error);
-    return NextResponse.json({ totalConversations: 0, totalMessages: 0, platforms: [], plan: "FREE" });
+    return NextResponse.json({ error: "Failed to load stats" }, { status: 500 });
   }
 }

@@ -41,6 +41,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const supabase = createServerClient();
 
+  // Verify session exists and belongs to user
+  const { data: existing } = await supabase
+    .from('chat_sessions')
+    .select('id')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single();
+
+  if (!existing) return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+
   const { data, error } = await supabase
     .from('chat_sessions')
     .update({

@@ -9,6 +9,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 export function createServerClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
+    console.warn('SUPABASE_SERVICE_ROLE_KEY not set; falling back to anon key. Server operations may fail due to RLS.');
     return createClient<Database>(supabaseUrl, supabaseAnonKey);
   }
   return createClient<Database>(supabaseUrl, serviceRoleKey, {

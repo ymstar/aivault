@@ -97,11 +97,18 @@ export async function POST(req: Request) {
   }
 
   // Save user message
-  await supabase.from('chat_messages').insert({
+  const { error: insertErr } = await supabase.from('chat_messages').insert({
     session_id: sessionId,
     role: 'user',
     content: message.trim(),
   });
+  if (insertErr) {
+    console.error('Failed to save user message:', insertErr);
+    return new Response(JSON.stringify({ error: 'Failed to save message' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   // Fetch multi-turn history (last 20 messages)
   const { data: history } = await supabase
@@ -146,7 +153,7 @@ export async function POST(req: Request) {
         const { done, value } = await reader.read();
         if (done) {
           // Save assistant message after stream completes
-          const { data: savedMsg } = await supabase
+          const { data: savedMsg, error: saveErr } = await supabase
             .from('chat_messages')
             .insert({
               session_id: sessionId,
@@ -156,6 +163,10 @@ export async function POST(req: Request) {
             })
             .select('id')
             .single();
+
+          if (saveErr) {
+            console.error('Failed to save assistant message:', saveErr);
+          }
 
           // Auto-title: if title is still "New Chat", use first ~50 chars of user message
           if (session.title === 'New Chat') {

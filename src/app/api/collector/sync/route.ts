@@ -52,20 +52,26 @@ export async function POST(req: NextRequest) {
 
   try {
     // Check if conversation already exists for this session
+    // We store sessionId in summary field for reliable matching
     const { data: existing } = await supabase
       .from('conversations')
       .select('id, message_count')
       .eq('user_id', userId)
-      .ilike('title', `%${sessionId.slice(0, 8)}%`)
+      .eq('platform', 'CLAUDE')
+      .eq('summary', `session:${sessionId}`)
       .limit(1)
       .single();
 
     if (existing) {
       // Update: delete old messages, insert new
-      await supabase
+      const { error: delErr } = await supabase
         .from('messages')
         .delete()
         .eq('conversation_id', existing.id);
+
+      if (delErr) {
+        throw new Error(`Failed to clear old messages: ${delErr.message}`);
+      }
 
       await supabase
         .from('conversations')
@@ -88,6 +94,7 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         platform: 'CLAUDE',
         title: title || `Claude Code Session ${sessionId.slice(0, 8)}`,
+        summary: `session:${sessionId}`,
         message_count: messages.length,
         created_at: createdAt || new Date().toISOString(),
         imported_at: new Date().toISOString(),
@@ -133,6 +140,7 @@ async function insertMessages(
     const { error } = await supabase.from('messages').insert(rows);
     if (error) {
       console.error('Message insert error:', error.message);
+      throw new Error(`Failed to insert messages: ${error.message}`);
     }
   }
 }

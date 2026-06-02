@@ -48,12 +48,14 @@ export function parseClaudeExport(data: unknown): ImportedConversation[] {
           if (!messageText?.trim()) continue;
 
           // Map sender to role: human/user -> user, assistant/claude -> assistant
-          let role: string;
           const sender = (msg.sender || '').toLowerCase();
+          let role: string;
           if (sender === 'human' || sender === 'user') {
             role = 'user';
-          } else {
+          } else if (sender === 'assistant' || sender === 'claude') {
             role = 'assistant';
+          } else {
+            continue; // skip unknown roles like system/tool
           }
 
           messages.push({

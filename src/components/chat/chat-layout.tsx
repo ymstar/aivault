@@ -96,7 +96,16 @@ export function ChatLayout() {
 
   const handleDelete = useCallback(async (id: string) => {
     if (!window.confirm('Delete this chat session?')) return;
-    await fetch(`/api/chat/sessions/${id}`, { method: 'DELETE' });
+    try {
+      const res = await fetch(`/api/chat/sessions/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        alert('Failed to delete session');
+        return;
+      }
+    } catch {
+      alert('Failed to delete session');
+      return;
+    }
     if (activeSessionId === id) {
       router.push('/chat');
     }
@@ -105,40 +114,47 @@ export function ChatLayout() {
 
   const handleExport = useCallback(async (id: string) => {
     const format = window.confirm('Export as Markdown? (Cancel for JSON)') ? 'markdown' : 'json';
-    window.open(`/api/chat/sessions/${id}/export?format=${format}`, '_blank');
+    const win = window.open(`/api/chat/sessions/${id}/export?format=${format}`, '_blank');
+    if (!win) alert('Popup blocked. Please allow popups for this site.');
   }, []);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading || !activeSessionId) return;
+    if (!text || loading || !activeSessionId || streamingRef.current) return;
 
     setInput('');
     setMessages((prev) => [...prev, { role: 'user', content: text }]);
     setLoading(true);
     streamingRef.current = true;
 
+    const controller = new AbortController();
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, sessionId: activeSessionId }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: 'Request failed' }));
-        setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${errData.message || errData.error}` }]);
-        setLoading(false);
-        streamingRef.current = false;
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === 'assistant') {
+            updated[updated.length - 1] = { ...last, content: `Error: ${errData.message || errData.error}` };
+          } else {
+            updated.push({ role: 'assistant', content: `Error: ${errData.message || errData.error}` });
+          }
+          return updated;
+        });
         return;
       }
 
       // SSE stream
       const reader = res.body?.getReader();
-      if (!reader) {
-        setLoading(false);
-        streamingRef.current = false;
-        return;
-      }
+      if (!reader) return;
 
       setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
@@ -167,7 +183,6 @@ export function ChatLayout() {
                 return updated;
               });
             } else if (data.type === 'done') {
-              // Update message with server ID
               if (data.messageId) {
                 setMessages((prev) => {
                   const updated = [...prev];
@@ -183,11 +198,20 @@ export function ChatLayout() {
         }
       }
 
-      // Refresh sessions to update title/message count
       fetchSessions();
     } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
       console.error('Chat error:', err);
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: Connection failed.' }]);
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === 'assistant') {
+          updated[updated.length - 1] = { ...last, content: 'Error: Connection failed.' };
+        } else {
+          updated.push({ role: 'assistant', content: 'Error: Connection failed.' });
+        }
+        return updated;
+      });
     } finally {
       setLoading(false);
       streamingRef.current = false;

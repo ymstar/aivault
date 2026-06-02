@@ -29,11 +29,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   // If setting as default, unset other defaults first
   if (body.isDefault) {
-    await supabase
+    const { error: unsetErr } = await supabase
       .from('user_llm_configs')
       .update({ is_default: false })
       .eq('user_id', userId)
       .eq('is_default', true);
+    if (unsetErr) {
+      return NextResponse.json({ error: 'Failed to update defaults' }, { status: 500 });
+    }
   }
 
   // Re-encrypt if new API key provided

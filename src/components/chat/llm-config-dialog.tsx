@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Plus, Trash2, Check, Loader2, Zap, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ const PRESETS = [
   { label: 'OpenAI', providerType: 'openai_compatible' as const, baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' },
   { label: 'DeepSeek', providerType: 'openai_compatible' as const, baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
   { label: 'Anthropic', providerType: 'anthropic' as const, baseUrl: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-20250514' },
-  { label: 'Mimo', providerType: 'openai_compatible' as const, baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic', model: 'mimo-v2-pro' },
+  { label: 'Mimo', providerType: 'anthropic' as const, baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic', model: 'mimo-v2-pro' },
 ];
 
 export function LLMConfigDialog({ open, onClose, onConfigChange }: LLMConfigDialogProps) {
@@ -44,7 +44,7 @@ export function LLMConfigDialog({ open, onClose, onConfigChange }: LLMConfigDial
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const fetchConfigs = async () => {
+  const fetchConfigs = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/chat/configs');
@@ -52,11 +52,11 @@ export function LLMConfigDialog({ open, onClose, onConfigChange }: LLMConfigDial
       setConfigs(data.configs || []);
     } catch { /* ignore */ }
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (open) fetchConfigs();
-  }, [open]);
+  }, [open, fetchConfigs]);
 
   const applyPreset = (preset: typeof PRESETS[number]) => {
     setLabel(preset.label);
@@ -87,17 +87,23 @@ export function LLMConfigDialog({ open, onClose, onConfigChange }: LLMConfigDial
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this LLM config?')) return;
-    await fetch(`/api/chat/configs/${id}`, { method: 'DELETE' });
+    try {
+      const res = await fetch(`/api/chat/configs/${id}`, { method: 'DELETE' });
+      if (!res.ok) { alert('Failed to delete config'); return; }
+    } catch { alert('Failed to delete config'); return; }
     fetchConfigs();
     onConfigChange();
   };
 
   const handleSetDefault = async (id: string) => {
-    await fetch(`/api/chat/configs/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isDefault: true }),
-    });
+    try {
+      const res = await fetch(`/api/chat/configs/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isDefault: true }),
+      });
+      if (!res.ok) { alert('Failed to set default'); return; }
+    } catch { alert('Failed to set default'); return; }
     fetchConfigs();
     onConfigChange();
   };

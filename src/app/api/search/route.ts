@@ -49,6 +49,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results, total: results.length });
   } catch (error) {
     console.error("Search error:", error);
-    return NextResponse.json({ results: [], total: 0 });
+    return NextResponse.json({ error: "Search failed" }, { status: 500 });
   }
 }

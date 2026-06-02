@@ -141,8 +141,10 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    setHasSearched(localStorage.getItem('aivault-has-searched') === '1');
-    setHasChatted(localStorage.getItem('aivault-has-chatted') === '1');
+    try {
+      setHasSearched(localStorage.getItem('aivault-has-searched') === '1');
+      setHasChatted(localStorage.getItem('aivault-has-chatted') === '1');
+    } catch { /* ignore */ }
   }, []);
 
   const hour = new Date().getHours();

@@ -25,11 +25,15 @@ export async function getDbUserId(): Promise<string | null> {
   }
 
   // User doesn't exist yet, create them
-  const { data: created } = await supabase
+  const { data: created, error: insertError } = await supabase
     .from('users')
-    .insert({ clerk_id: clerkId, email: '' })
+    .insert({ clerk_id: clerkId, email: `user-${clerkId.slice(0, 8)}@placeholder.local` })
     .select('id')
     .single();
 
+  if (insertError) {
+    console.error('Error creating user:', insertError);
+    return null;
+  }
   return created?.id || null;
 }

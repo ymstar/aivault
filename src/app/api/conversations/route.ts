@@ -35,12 +35,21 @@ export async function GET(request: NextRequest) {
       // Search in title OR message content
       const escaped = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
       
-      // First find conversation IDs that have matching messages
-      const { data: matchingMsgs } = await supabase
-        .from('messages')
-        .select('conversation_id')
-        .ilike('content', `%${escaped}%`)
-        .limit(100);
+      // First find conversation IDs that have matching messages (scoped to user)
+      const { data: userConvIds } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('user_id', userId);
+      const userConvIdSet = (userConvIds || []).map(c => c.id);
+
+      const { data: matchingMsgs } = userConvIdSet.length > 0
+        ? await supabase
+            .from('messages')
+            .select('conversation_id')
+            .in('conversation_id', userConvIdSet)
+            .ilike('content', `%${escaped}%`)
+            .limit(100)
+        : { data: [] };
       
       const matchConvIds = [...new Set((matchingMsgs || []).map(m => m.conversation_id))];
       
@@ -82,6 +91,16 @@ export async function POST(request: NextRequest) {
     const supabase = createServerClient();
     const body = await request.json();
     const conversations: ImportedConversation[] = Array.isArray(body) ? body : [body];
+
+    // Validate input
+    for (const conv of conversations) {
+      if (!conv.platform || !conv.title || !Array.isArray(conv.messages)) {
+        return NextResponse.json(
+          { error: 'Each conversation must have platform, title, and messages[]' },
+          { status: 400 }
+        );
+      }
+    }
 
     const created: Array<Record<string, unknown>> = [];
 

@@ -7,8 +7,8 @@ export async function GET(req: Request) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const url = new URL(req.url);
-  const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100);
-  const offset = parseInt(url.searchParams.get('offset') || '0');
+  const limit = Math.min(Math.max(1, parseInt(url.searchParams.get('limit') || '50') || 50), 100);
+  const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0') || 0);
 
   const supabase = createServerClient();
   const { data, error } = await supabase

@@ -123,6 +123,9 @@ function generateHashEmbedding(text: string): number[] {
   return Array.from(vec);
 }
 
+// Singleton Supabase client for embeddings operations
+const _supabase = createClient(supabaseUrl, serviceKey);
+
 /**
  * Search for similar content using vector similarity.
  */
@@ -131,9 +134,7 @@ export async function searchSimilar(
   userId: string,
   limit: number = 10
 ) {
-  const supabase = createClient(supabaseUrl, serviceKey);
-  
-  const { data, error } = await supabase.rpc('match_embeddings', {
+  const { data, error } = await _supabase.rpc('match_embeddings', {
     query_embedding: queryEmbedding,
     match_user_id: userId,
     match_count: limit,
@@ -152,8 +153,7 @@ export async function searchSimilar(
  */
 export async function isEmbeddingReady(): Promise<boolean> {
   try {
-    const supabase = createClient(supabaseUrl, serviceKey);
-    const { count, error } = await supabase
+    const { error } = await _supabase
       .from('embeddings')
       .select('*', { count: 'exact', head: true });
     return !error;

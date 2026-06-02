@@ -31,15 +31,37 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Fetch messages to embed
+    // Fetch user's conversation IDs first (authorization boundary)
+    const { data: userConvs } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('user_id', user.id);
+    const userConvIds = new Set(userConvs?.map(c => c.id) || []);
+
+    if (userConvIds.size === 0) {
+      return NextResponse.json({ message: 'No conversations found', embedded: 0 });
+    }
+
+    // If specific conversation requested, verify ownership
+    if (conversationId && !userConvIds.has(conversationId)) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    // Fetch messages to embed (scoped to user's conversations)
     let query = supabase
       .from('messages')
       .select('id, conversation_id, content, role')
+      .in('conversation_id', [...userConvIds])
       .order('created_at', { ascending: true })
       .limit(500);
 
     if (conversationId) {
-      query = query.eq('conversation_id', conversationId);
+      query = supabase
+        .from('messages')
+        .select('id, conversation_id, content, role')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(500);
     }
 
     const { data: messages, error: msgErr } = await query;
