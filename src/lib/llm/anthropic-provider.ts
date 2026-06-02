@@ -9,10 +9,8 @@ export class AnthropicProvider implements LLMProvider {
 
   private getBaseUrl(): string {
     let url = this.config.baseUrl.replace(/\/+$/, '');
-    // Ensure /v1 suffix
-    if (!url.endsWith('/v1')) {
-      url = url + '/v1';
-    }
+    // Don't auto-add /v1 — let user specify the full base URL
+    // Many proxies have different path structures
     return url;
   }
 
