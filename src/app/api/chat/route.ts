@@ -144,15 +144,20 @@ export async function POST(req: Request) {
       model: session.model_override || llmConfig.model,
     });
 
+    console.log('[Chat] Provider:', llmConfig.provider_type, 'Endpoint:', provider.getEndpoint(), 'Model:', llmConfig.model);
+
     const tokenStream = await streamCompletion(provider, messages, systemPrompt);
     const reader = tokenStream.getReader();
     const encoder = new TextEncoder();
     let assistantContent = '';
+    let chunkCount = 0;
 
     const stream = new ReadableStream({
       async pull(controller) {
         const { done, value } = await reader.read();
         if (done) {
+          console.log('[Chat] Stream done. Total chunks:', chunkCount, 'Content length:', assistantContent.length);
+
           // Save assistant message after stream completes
           const { data: savedMsg, error: saveErr } = await supabase
             .from('chat_messages')
@@ -190,7 +195,13 @@ export async function POST(req: Request) {
           return;
         }
 
+        chunkCount++;
         assistantContent += value;
+
+        if (chunkCount <= 3) {
+          console.log(`[Chat] Chunk ${chunkCount}:`, value.slice(0, 100));
+        }
+
         const tokenPayload = JSON.stringify({ type: 'token', content: value });
         controller.enqueue(encoder.encode(`data: ${tokenPayload}\n\n`));
       },
@@ -204,7 +215,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (err) {
-    console.error('Chat error:', err);
+    console.error('[Chat] Error:', err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : 'Failed to get LLM response' }),
       { status: 502, headers: { 'Content-Type': 'application/json' } },
