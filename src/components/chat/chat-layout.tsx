@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Settings, Download, Plus, MessageSquare, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,8 @@ export function ChatLayout() {
       const res = await fetch('/api/chat/sessions');
       const data = await res.json();
       setSessions(data.sessions || []);
-    } catch { /* ignore */ }
+      return data.sessions || [];
+    } catch { return []; }
   }, []);
 
   const fetchConfigs = useCallback(async () => {
@@ -57,10 +58,18 @@ export function ChatLayout() {
   const fetchSession = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/chat/sessions/${id}`);
+      if (!res.ok) {
+        setMessages([]);
+        setCurrentSession(null);
+        return;
+      }
       const data = await res.json();
       setMessages(data.messages || []);
       setCurrentSession(data.session);
-    } catch { /* ignore */ }
+    } catch {
+      setMessages([]);
+      setCurrentSession(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -86,8 +95,10 @@ export function ChatLayout() {
       });
       const data = await res.json();
       if (data.session) {
-        await fetchSessions();
+        const updatedSessions = await fetchSessions();
+        // Navigate to the new session
         router.push(`/chat?session=${data.session.id}`);
+        return;
       }
     } catch { /* ignore */ }
   }, [router, fetchSessions]);
@@ -104,10 +115,16 @@ export function ChatLayout() {
       alert('Failed to delete session');
       return;
     }
+
+    // If deleting the active session, clear state and navigate to /chat
     if (activeSessionId === id) {
+      setMessages([]);
+      setCurrentSession(null);
       router.push('/chat');
     }
-    fetchSessions();
+
+    // Refresh sessions list
+    await fetchSessions();
   }, [activeSessionId, router, fetchSessions]);
 
   const handleExport = useCallback(async (id: string) => {
@@ -152,7 +169,6 @@ export function ChatLayout() {
         },
       ]);
 
-      // Refresh sessions to update title if changed
       fetchSessions();
 
       try {
