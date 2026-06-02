@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, Download, Plus, MessageSquare } from 'lucide-react';
+import { Settings, Download, Plus, MessageSquare, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageList, type RAGSource } from './message-list';
 import { MessageInput } from './message-input';
@@ -258,6 +258,13 @@ export function ChatLayout() {
                   title="Export"
                 >
                   <Download className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDelete(session.id); }}
+                  className="p-1 rounded hover:bg-red-700/50 hover:text-red-400"
+                  title="Delete"
+                >
+                  <Trash2 className="h-3 w-3" />
                 </button>
               </div>
             </div>
