@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing platform' }, { status: 400 });
     }
 
-    const validPlatforms = ['chatgpt', 'claude', 'claude-code'];
+    const validPlatforms = ['chatgpt', 'claude', 'claude-code', 'gemini'];
     if (!validPlatforms.includes(platform)) {
       return NextResponse.json(
         { error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}` },

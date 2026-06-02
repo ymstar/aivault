@@ -1,10 +1,12 @@
 export { parseChatGPTExport } from './chatgpt';
 export { parseClaudeExport } from './claude';
 export { parseClaudeCodeExport } from './claude-code';
+export { parseGeminiExport } from './gemini';
 
 import { parseChatGPTExport } from './chatgpt';
 import { parseClaudeExport } from './claude';
 import { parseClaudeCodeExport } from './claude-code';
+import { parseGeminiExport } from './gemini';
 import type { ImportedConversation } from '@/types';
 
 export function parseExport(platform: string, data: unknown, filename?: string): ImportedConversation[] {
@@ -24,6 +26,8 @@ export function parseExport(platform: string, data: unknown, filename?: string):
         return parseClaudeCodeExport(data);
       }
       throw new Error('Claude Code format requires text data');
+    case 'gemini':
+      return parseGeminiExport(data);
     default:
       throw new Error(`Unsupported platform: ${platform}`);
   }
