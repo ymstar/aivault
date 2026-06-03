@@ -53,7 +53,7 @@ Chat with your conversations using any OpenAI/Anthropic compatible LLM. Configur
 <td width="50%">
 
 ### 🤖 Real-Time Collection
-Claude Code Collector watches `~/.claude/projects/` and syncs sessions to AIVault in real-time. Zero manual effort.
+MCP Server built-in collector watches `~/.claude/projects/` and syncs raw sessions to AIVault automatically. Zero manual effort.
 
 ### 🔌 MCP Server
 Model Context Protocol integration — connect AIVault to Claude Desktop, Cursor, or any MCP-compatible agent.
@@ -145,42 +145,7 @@ Every `git push` auto-deploys.
 
 ---
 
-## 🤖 Claude Code Collector
-
-Automatically sync Claude Code sessions to AIVault:
-
-```bash
-cd collector
-npm install && npm run build
-```
-
-Configure:
-
-```bash
-# collector/.env
-AIVAULT_API_URL=https://your-aivault.vercel.app
-AIVAULT_API_KEY=av_xxxxx         # Generate in Settings → API Keys
-```
-
-Run:
-
-```bash
-node dist/index.js
-```
-
-```
-╔═══════════════════════════════════════╗
-║    AIVault — Claude Code Collector     ║
-╚═══════════════════════════════════════╝
-
-✓ Syncing as user you@example.com
-👁 Watching: ~/.claude/projects
-Found 11 existing session files
-✓ Initial scan: 7 synced, 0 skipped
-✓ Watcher active — collecting new sessions in real-time
-```
-
-The collector monitors `~/.claude/projects/` and syncs new conversations in real-time. No manual export needed.
+> **Note**: Claude Code session collection is now built into the [MCP Server](#-mcp-server). No separate collector process needed.
 
 ---
 
@@ -235,8 +200,8 @@ AIVault 提供独立的 MCP Server 包，可连接任何兼容 MCP 协议的 Age
 ├─────────────────────────────────────────────────────┤
 │  External Tools                                      │
 │  ┌──────────────┐  ┌──────────────┐                 │
-│  │   Collector   │  │  MCP Server  │                 │
-│  │ (Claude Code) │  │ (Agents)     │                 │
+│  │   MCP Server  │  │ (with built-in│                 │
+│  │  collector)   │  │              │                 │
 │  └──────────────┘  └──────────────┘                 │
 └─────────────────────────────────────────────────────┘
 ```
@@ -265,8 +230,7 @@ aivault/
 │   │   ├── auth.ts             # Auth utilities
 │   │   └── api-keys.ts         # API key management
 │   └── middleware.ts           # Clerk auth middleware
-├── collector/                  # Claude Code session collector
-├── supabase/
+├── supabase/                   # Database schema & migrations
 │   ├── schema.sql              # Core database schema
 │   └── migrations/             # pgvector & API keys
 └── docs/                       # Documentation
