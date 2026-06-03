@@ -62,10 +62,26 @@ export async function GET(req: NextRequest) {
     }
 
     const now = Date.now();
-    const agents: AnyRow[] = ((data || []) as AnyRow[]).map((a: AnyRow) => ({
-      ...a,
-      status: now - new Date(a.last_seen).getTime() > 5 * 60 * 1000 ? 'offline' : a.status,
-    }));
+    const OFFLINE_THRESHOLD = 5 * 60 * 1000;     // 5 min → mark offline
+    const STALE_THRESHOLD = 24 * 60 * 60 * 1000;  // 24h → auto-delete
+
+    const rows = (data || []) as AnyRow[];
+
+    // Auto-delete stale agents (offline > 24h)
+    const staleIds = rows
+      .filter((a) => now - new Date(a.last_seen).getTime() > STALE_THRESHOLD)
+      .map((a) => a.id);
+
+    if (staleIds.length > 0) {
+      await db.from('collector_agents').delete().in('id', staleIds);
+    }
+
+    const agents: AnyRow[] = rows
+      .filter((a) => !staleIds.includes(a.id))
+      .map((a) => ({
+        ...a,
+        status: now - new Date(a.last_seen).getTime() > OFFLINE_THRESHOLD ? 'offline' : a.status,
+      }));
 
     return NextResponse.json({ agents });
   } catch (error) {
