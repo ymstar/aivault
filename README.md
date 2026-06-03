@@ -78,7 +78,7 @@ Generate API keys for external tools. Collector, MCP, or your own scripts — al
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/ymstar/aivault.git
+git clone https://github.com/aivault-org/aivault.git
 cd aivault
 npm install
 ```
@@ -135,7 +135,7 @@ Open [http://localhost:3000](http://localhost:3000) 🎉
 
 ## ☁️ Deploy to Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ymstar/aivault)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/aivault-org/aivault)
 
 1. Click the button above (or connect repo manually)
 2. Add environment variables from `.env.local`
@@ -186,28 +186,33 @@ The collector monitors `~/.claude/projects/` and syncs new conversations in real
 
 ## 🔌 MCP Server
 
-Connect AIVault to any MCP-compatible agent:
+AIVault 提供独立的 MCP Server 包，可连接任何兼容 MCP 协议的 Agent：
 
 ```json
 {
   "mcpServers": {
     "aivault": {
-      "command": "node",
-      "args": ["path/to/aivault/mcp-server/index.js"],
+      "command": "npx",
+      "args": ["-y", "@aivault/aivault-mcp-server"],
       "env": {
-        "AIVAULT_API_URL": "https://your-instance.vercel.app",
-        "AIVAULT_API_KEY": "your-key"
+        "AIVAULT_URL": "https://your-aivault.vercel.app",
+        "AIVAULT_API_KEY": "av_xxxxxxxx"
       }
     }
   }
 }
 ```
 
-**Available tools:**
-- `search_conversations` — Search across all conversations
-- `get_conversation` — Get full conversation details
-- `list_conversations` — List recent conversations
-- `get_stats` — Get statistics overview
+详见 [@aivault/aivault-mcp-server](https://github.com/aivault-org/aivault-mcp-server)。
+
+**可用工具：**
+- `search_conversations` — 搜索对话（关键词 / 语义）
+- `get_conversation` — 获取完整对话详情
+- `list_conversations` — 列出最近对话
+- `get_stats` — 获取统计信息
+- `register_agent` — 注册 Agent 到 Dashboard
+- `sync_conversation` — 同步对话到知识库
+- `heartbeat` — 心跳保活
 
 ---
 
@@ -261,7 +266,6 @@ aivault/
 │   │   └── api-keys.ts         # API key management
 │   └── middleware.ts           # Clerk auth middleware
 ├── collector/                  # Claude Code session collector
-├── mcp-server/                 # MCP server for agent integration
 ├── supabase/
 │   ├── schema.sql              # Core database schema
 │   └── migrations/             # pgvector & API keys
