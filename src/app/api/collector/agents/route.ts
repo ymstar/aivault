@@ -22,6 +22,17 @@ async function authenticate(req: NextRequest): Promise<string | null> {
   return validateApiKey(apiKey);
 }
 
+function isTableMissing(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as Record<string, unknown>;
+  return (
+    e.code === '42P01' ||
+    (typeof e.message === 'string' && e.message.includes('does not exist')) ||
+    (typeof e.message === 'string' && e.message.includes('relation') && e.message.includes('does not exist')) ||
+    (typeof e.message === 'string' && e.message.includes('collector_agents'))
+  );
+}
+
 // GET — list agents
 export async function GET(req: NextRequest) {
   const userId = await authenticate(req);
@@ -40,13 +51,14 @@ export async function GET(req: NextRequest) {
       .order('last_seen', { ascending: false });
 
     if (error) {
-      if (error.message?.includes('does not exist') || error.code === '42P01') {
+      if (isTableMissing(error)) {
         return NextResponse.json({
           agents: [],
-          note: 'collector_agents table not found. Run the migration first.',
+          note: 'collector_agents table not found. Run migration: supabase/migrations/006_collector_agents.sql',
         });
       }
-      throw error;
+      console.error('[Collector Agents] GET supabase error:', error);
+      return NextResponse.json({ error: error.message || 'Database error' }, { status: 500 });
     }
 
     const now = Date.now();
@@ -97,12 +109,13 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      if (error.message?.includes('does not exist') || error.code === '42P01') {
+      if (isTableMissing(error)) {
         return NextResponse.json({
-          error: 'collector_agents table not found. Run the migration first.',
+          error: 'collector_agents table not found. Run migration: supabase/migrations/006_collector_agents.sql',
         }, { status: 503 });
       }
-      throw error;
+      console.error('[Collector Agents] POST supabase error:', error);
+      return NextResponse.json({ error: error.message || 'Database error' }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 201 });
@@ -138,7 +151,15 @@ export async function PATCH(req: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (isTableMissing(error)) {
+        return NextResponse.json({
+          error: 'collector_agents table not found. Run migration: supabase/migrations/006_collector_agents.sql',
+        }, { status: 503 });
+      }
+      console.error('[Collector Agents] PATCH supabase error:', error);
+      return NextResponse.json({ error: error.message || 'Database error' }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true, lastSeen: data?.last_seen });
   } catch (error) {
