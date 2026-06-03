@@ -202,3 +202,46 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update heartbeat' }, { status: 500 });
   }
 }
+
+// DELETE — remove an agent
+export async function DELETE(req: NextRequest) {
+  const userId = await authenticate(req);
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const agentId = searchParams.get('agentId');
+    const deleteAll = searchParams.get('all') === 'true';
+
+    if (!agentId && !deleteAll) {
+      return NextResponse.json({ error: 'agentId or all=true is required' }, { status: 400 });
+    }
+
+    const supabase = createServerClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+
+    if (deleteAll) {
+      const { error } = await db
+        .from('collector_agents')
+        .delete()
+        .eq('user_id', userId);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, deleted: 'all' });
+    }
+
+    const { error } = await db
+      .from('collector_agents')
+      .delete()
+      .eq('agent_id', agentId)
+      .eq('user_id', userId);
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true, deleted: agentId });
+  } catch (error) {
+    console.error('[Collector Agents] DELETE error:', error);
+    return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 });
+  }
+}
