@@ -8,7 +8,7 @@ import { validateApiKey } from '@/lib/api-keys';
  * Auth: API key in Authorization header (Bearer av_xxx).
  *
  * GET  /api/collector/agents          — list registered agents
- * POST /api/collector/agents          — register a new agent
+ * POST /api/collector/agents          — register / upsert an agent
  * PATCH /api/collector/agents         — send heartbeat
  */
 
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST — register agent
+// POST — register / upsert agent
 export async function POST(req: NextRequest) {
   const userId = await authenticate(req);
   if (!userId) {
@@ -83,17 +83,52 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, platform, metadata } = body;
+    const { agentId: clientAgentId, name, platform, metadata } = body;
 
     if (!name || !platform) {
       return NextResponse.json({ error: 'name and platform are required' }, { status: 400 });
     }
 
     const supabase = createServerClient();
-    const agentId = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
+
+    // Use client-provided stable ID, or generate a random one
+    const agentId = clientAgentId || `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    // Try upsert — if agent_id already exists for this user, update it
+    const { data: existing } = await db
+      .from('collector_agents')
+      .select('id')
+      .eq('agent_id', agentId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existing) {
+      // Update existing agent
+      const { data, error } = await db
+        .from('collector_agents')
+        .update({
+          name,
+          platform: platform.toUpperCase(),
+          metadata: metadata || {},
+          status: 'online',
+          last_seen: new Date().toISOString(),
+        })
+        .eq('agent_id', agentId)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Collector Agents] POST update supabase error:', error);
+        return NextResponse.json({ error: error.message || 'Database error' }, { status: 500 });
+      }
+
+      return NextResponse.json(data, { status: 200 });
+    }
+
+    // Insert new agent
     const { data, error } = await db
       .from('collector_agents')
       .insert({
@@ -114,7 +149,7 @@ export async function POST(req: NextRequest) {
           error: 'collector_agents table not found. Run migration: supabase/migrations/006_collector_agents.sql',
         }, { status: 503 });
       }
-      console.error('[Collector Agents] POST supabase error:', error);
+      console.error('[Collector Agents] POST insert supabase error:', error);
       return NextResponse.json({ error: error.message || 'Database error' }, { status: 500 });
     }
 
