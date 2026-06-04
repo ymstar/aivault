@@ -1,4 +1,4 @@
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { createServerClient } from './supabase';
 
 /**
@@ -24,10 +24,16 @@ export async function getDbUserId(): Promise<string | null> {
     return null;
   }
 
-  // User doesn't exist yet, create them
+  // User doesn't exist yet — fetch real profile from Clerk
+  const clerkUser = await currentUser();
+  const email = clerkUser?.emailAddresses?.[0]?.emailAddress || `user-${clerkId.slice(0, 8)}@placeholder.local`;
+  const name = clerkUser?.firstName
+    ? `${clerkUser.firstName} ${clerkUser.lastName || ''}`.trim()
+    : undefined;
+
   const { data: created, error: insertError } = await supabase
     .from('users')
-    .insert({ clerk_id: clerkId, email: `user-${clerkId.slice(0, 8)}@placeholder.local` })
+    .insert({ clerk_id: clerkId, email, name })
     .select('id')
     .single();
 
