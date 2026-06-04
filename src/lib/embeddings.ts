@@ -1,23 +1,26 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from './supabase';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const openaiKey = process.env.OPENAI_API_KEY;
 
 /**
  * Generate embedding vector for a given text.
  * Uses OpenAI text-embedding-3-small if OPENAI_API_KEY is set,
- * otherwise uses a simple hash-based fallback (for dev/testing).
+ * otherwise falls back to a hash-based pseudo-embedding (dev/test only).
+ * Throws in production if no API key is configured.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   const truncated = text.slice(0, 8000);
-  
+
   if (openaiKey) {
     return generateOpenAIEmbedding(truncated);
   }
-  
-  // Fallback: deterministic hash-based pseudo-embedding
-  // NOT suitable for production — just for testing without an embedding API key
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('OPENAI_API_KEY is not set — embedding generation requires a real API key in production');
+  }
+
+  // Fallback: deterministic hash-based pseudo-embedding (dev/test only)
+  console.warn('Using hash-based pseudo-embedding — set OPENAI_API_KEY for real vector search');
   return generateHashEmbedding(truncated);
 }
 
@@ -123,8 +126,12 @@ function generateHashEmbedding(text: string): number[] {
   return Array.from(vec);
 }
 
-// Singleton Supabase client for embeddings operations
-const _supabase = createClient(supabaseUrl, serviceKey);
+// Lazy Supabase client — avoids module-level env reads that fail at import time
+let _supabase: ReturnType<typeof createServerClient> | null = null;
+function getSupabase() {
+  if (!_supabase) _supabase = createServerClient();
+  return _supabase;
+}
 
 /**
  * Search for similar content using vector similarity.
@@ -134,8 +141,8 @@ export async function searchSimilar(
   userId: string,
   limit: number = 10
 ) {
-  const { data, error } = await _supabase.rpc('match_embeddings', {
-    query_embedding: queryEmbedding,
+  const { data, error } = await getSupabase().rpc('match_embeddings', {
+    query_embedding: `[${queryEmbedding.join(',')}]`,
     match_user_id: userId,
     match_count: limit,
   });
@@ -153,7 +160,7 @@ export async function searchSimilar(
  */
 export async function isEmbeddingReady(): Promise<boolean> {
   try {
-    const { error } = await _supabase
+    const { error } = await getSupabase()
       .from('embeddings')
       .select('*', { count: 'exact', head: true });
     return !error;

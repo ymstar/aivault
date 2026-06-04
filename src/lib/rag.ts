@@ -154,10 +154,12 @@ export async function retrieveRAGContext(userId: string, query: string): Promise
     console.error('RAG context retrieval error:', err);
   }
 
-  // Truncate to avoid exceeding LLM context window (~12K tokens)
+  // Truncate to avoid exceeding LLM context window (~12K tokens).
+  // Vector search returns results by similarity, so the most relevant
+  // content is at the start — keep the head, not the tail.
   const MAX_CONTEXT_CHARS = 15000;
   if (context.length > MAX_CONTEXT_CHARS) {
-    context = context.slice(-MAX_CONTEXT_CHARS);
+    context = context.slice(0, MAX_CONTEXT_CHARS);
   }
 
   return { context, sources };
