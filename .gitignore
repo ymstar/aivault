@@ -52,3 +52,6 @@ collector/package-lock.json
 
 # Supabase local
 supabase/.temp
+
+# clerk configuration (can include secrets)
+/.clerk/
